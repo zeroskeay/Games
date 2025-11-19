@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>泡泡龙大作战</title>
+    <style>
+        :root {
+            --bg-color: #E0F7FA;
+            --primary: #4DD0E1;
+            --accent: #FF8A65;
+            --text: #006064;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: 'Segoe UI', 'Comic Sans MS', sans-serif;
+            touch-action: none; /* 禁止浏览器默认滚动 */
+            user-select: none;
+        }
+
+        /* 游戏画布全屏 */
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* UI 层 */
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; /* 让点击穿透到 Canvas */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .score-board {
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: var(--text);
+            text-shadow: 2px 2px 0px white;
+        }
+
+        /* 开始/结束 弹窗 */
+        #modal {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.8);
+            backdrop-filter: blur(5px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto;
+            z-index: 100;
+        }
+
+        h1 { margin: 0 0 10px 0; color: #FF7043; font-size: 2.5rem; text-shadow: 3px 3px 0 #FFCCBC; }
+        p { color: #555; font-size: 1.1rem; margin-bottom: 30px; text-align: center; padding: 0 20px; }
+
+        .btn {
+            background: #26C6DA;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            border-radius: 50px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #0097A7;
+            transition: transform 0.1s;
+            text-decoration: none;
+        }
+        .btn:active { transform: translateY(5px); box-shadow: none; }
+
+        .btn-home {
+            margin-top: 20px;
+            background: #fff;
+            color: #888;
+            font-size: 1rem;
+            padding: 10px 20px;
+            box-shadow: 0 3px 0 #ccc;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div class="score-board">💎 <span id="scoreVal">0</span></div>
+    </div>
+
+    <div id="modal">
+        <h1>🐲 泡泡龙大作战</h1>
+        <p id="modal-msg">拖动飞机射击数字，<br>千万别让龙撞到你！</p>
+        <button class="btn" id="startBtn">开始战斗</button>
+        <a href="../../index.html" class="btn btn btn-home">🏠 返回大厅</a>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('startBtn');
+        const modal = document.getElementById('modal');
+        const modalMsg = document.getElementById('modal-msg');
+        const scoreEl = document.getElementById('scoreVal');
+
+        // --- 📱 适配屏幕 ---
+        let WIDTH, HEIGHT;
+        function resize() {
+            WIDTH = window.innerWidth;
+            HEIGHT = window.innerHeight;
+            canvas.width = WIDTH * window.devicePixelRatio;
+            canvas.height = HEIGHT * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- 🔊 音效 (Web Audio API) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+
+            if (type === 'shoot') {
+                // 极短的射击声
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+                gain.gain.setValueAtTime(0.05, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'hit') {
+                // 击中反馈
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(200, now);
+                gain.gain.setValueAtTime(0.05, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.05);
+                osc.start(now);
+                osc.stop(now + 0.05);
+            } else if (type === 'explode') {
+                // 爆炸
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(100, now);
+                osc.frequency.exponentialRampToValueAtTime(10, now + 0.3);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            } else if (type === 'powerup') {
+                // 升级
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.linearRampToValueAtTime(1200, now + 0.3);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            }
+        }
+
+        // --- 🎮 游戏对象类 ---
+        
+        // 1. 玩家飞机
+        const player = {
+            x: 0, y: 0, r: 25,
+            power: 1, // 子弹伤害
+            fireLevel: 1, // 射速/子弹数等级
+            lastFire: 0,
+            color: '#FF7043',
+            emoji: '🚀'
+        };
+
+        // 2. 子弹
+        let bullets = [];
+        class Bullet {
+            constructor(x, y, vx, vy) {
+                this.x = x; this.y = y;
+                this.vx = vx; this.vy = vy;
+                this.r = 6;
+                this.active = true;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                if (this.y < -10 || this.x < 0 || this.x > WIDTH) this.active = false;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.r, 0, Math.PI*2);
+                ctx.fillStyle = '#FFD54F';
+                ctx.fill();
+            }
+        }
+
+        // 3. 龙 (由多个段组成)
+        let dragons = []; // 存储多条龙
+        class DragonSegment {
+            constructor(x, y, hp, type, isHead) {
+                this.x = x; this.y = y;
+                this.r = isHead ? 35 : 28; // 龙头大一点
+                this.hp = hp;
+                this.maxHp = hp;
+                this.type = type; // 'body' or 'chest'
+                this.isHead = isHead;
+                this.active = true;
+                this.color = `hsl(${Math.random() * 360}, 70%, 70%)`;
+                this.offset = Math.random() * 100; // 用于摆动动画
+            }
+
+            update(speed, time) {
+                // 蛇形走位：X轴基于正弦波摆动
+                this.y += speed;
+                this.x += Math.sin(time * 0.005 + this.offset) * 1.5; 
+                
+                // 边界处理
+                if (this.x < this.r) this.x = this.r;
+                if (this.x > WIDTH - this.r) this.x = WIDTH - this.r;
+            }
+
+            draw() {
+                // 绘制圆球
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.r, 0, Math.PI*2);
+                
+                if (this.type === 'chest') {
+                    ctx.fillStyle = '#FFD700'; // 金色宝箱
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = 'yellow';
+                } else {
+                    ctx.fillStyle = this.color;
+                    ctx.shadowBlur = 0;
+                }
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                // 绘制内部 (表情或数字)
+                ctx.fillStyle = '#fff';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                if (this.isHead) {
+                    ctx.font = '40px Arial';
+                    ctx.fillText('🐲', this.x, this.y + 5);
+                } else if (this.type === 'chest') {
+                    ctx.font = '30px Arial';
+                    ctx.fillText('🎁', this.x, this.y + 3);
+                } else {
+                    ctx.font = 'bold 20px Arial';
+                    ctx.fillText(this.hp, this.x, this.y);
+                    
+                    // 绘制血条圈
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.r - 2, -Math.PI/2, -Math.PI/2 + (Math.PI*2 * (this.hp/this.maxHp)));
+                    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+                    ctx.lineWidth = 4;
+                    ctx.stroke();
+                }
+            }
+        }
+
+        // 4. 粒子效果 (爆炸)
+        let particles = [];
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y;
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 5 + 2;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.life = 1.0;
+                this.color = color;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= 0.05;
+                this.vy += 0.2; // 重力
+            }
+            draw() {
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 4, 0, Math.PI*2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        // --- 🕹️ 游戏核心逻辑 ---
+        let gameRunning = false;
+        let score = 0;
+        let frames = 0;
+        let spawnRate = 200; // 初始生成频率
+        let gameSpeed = 1.5;
+        let difficulty = 1;
+
+        function init() {
+            player.x = WIDTH / 2;
+            player.y = HEIGHT - 100;
+            player.power = 1;
+            player.fireLevel = 1;
+            
+            bullets = [];
+            dragons = []; // 这里dragons是一个二维数组，每个元素是一条龙(数组)
+            particles = [];
+            score = 0;
+            scoreEl.innerText = 0;
+            difficulty = 1;
+            gameSpeed = 1.5;
+            frames = 0;
+        }
+
+        function spawnDragon() {
+            // 决定这条龙多长
+            const length = Math.floor(Math.random() * 4) + 3 + Math.floor(difficulty/2);
+            const startX = Math.random() * (WIDTH - 60) + 30;
+            let newDragon = [];
+
+            // 生成龙头
+            newDragon.push(new DragonSegment(startX, -50, 999, 'body', true));
+
+            // 生成龙身
+            for(let i=1; i<length; i++) {
+                // 有概率生成宝箱
+                const isChest = Math.random() < 0.1;
+                const hp = isChest ? 10 : Math.floor(Math.random() * 5 * difficulty) + 2;
+                const type = isChest ? 'chest' : 'body';
+                // Y轴向上排列，让它们慢慢落下来
+                newDragon.push(new DragonSegment(startX, -50 - (i*55), hp, type, false));
+            }
+            dragons.push(newDragon);
+        }
+
+        function update() {
+            if (!gameRunning) return;
+
+            // 1. 生成控制
+            frames++;
+            if (frames % 250 === 0) {
+                spawnDragon();
+                difficulty += 0.5; // 难度随时间增加
+                if(difficulty > 10) gameSpeed += 0.05; // 速度也增加
+            }
+
+            // 2. 玩家自动射击
+            const fireRate = Math.max(5, 20 - player.fireLevel * 2); // 等级越高射速越快
+            if (frames % fireRate === 0) {
+                playSound('shoot');
+                // 根据等级发射不同数量的子弹
+                bullets.push(new Bullet(player.x, player.y - 20, 0, -12)); // 主炮
+                
+                if (player.fireLevel >= 2) {
+                    bullets.push(new Bullet(player.x - 15, player.y - 10, -2, -10));
+                    bullets.push(new Bullet(player.x + 15, player.y - 10, 2, -10));
+                }
+                if (player.fireLevel >= 5) {
+                     bullets.push(new Bullet(player.x - 30, player.y, -4, -9));
+                     bullets.push(new Bullet(player.x + 30, player.y, 4, -9));
+                }
+            }
+
+            // 3. 更新子弹
+            bullets.forEach(b => b.update());
+            bullets = bullets.filter(b => b.active);
+
+            // 4. 更新龙
+            for (let dIndex = dragons.length - 1; dIndex >= 0; dIndex--) {
+                let dragon = dragons[dIndex];
+                let dragonSpeed = gameSpeed + (difficulty * 0.1);
+
+                for (let sIndex = dragon.length - 1; sIndex >= 0; sIndex--) {
+                    let seg = dragon[sIndex];
+                    seg.update(dragonSpeed, frames);
+
+                    // 碰撞检测：龙撞玩家 -> Game Over
+                    const distToPlayer = Math.hypot(seg.x - player.x, seg.y - player.y);
+                    if (distToPlayer < seg.r + player.r) {
+                        gameOver();
+                        return;
+                    }
+
+                    // 碰撞检测：子弹撞龙段
+                    for (let b of bullets) {
+                        if (!b.active || !seg.active) continue;
+                        const dist = Math.hypot(b.x - seg.x, b.y - seg.y);
+                        if (dist < seg.r + b.r) {
+                            b.active = false; // 子弹消失
+                            playSound('hit');
+                            
+                            // 宝箱特殊处理
+                            if (seg.type === 'chest') {
+                                seg.hp -= player.power * 2; // 宝箱容易打
+                            } else if (!seg.isHead) {
+                                seg.hp -= player.power;
+                            }
+
+                            // 爆炸逻辑
+                            if (seg.hp <= 0 && !seg.isHead) {
+                                seg.active = false;
+                                createExplosion(seg.x, seg.y, seg.color);
+                                score += 10;
+                                scoreEl.innerText = score;
+
+                                if (seg.type === 'chest') {
+                                    playSound('powerup');
+                                    player.fireLevel = Math.min(player.fireLevel + 1, 6);
+                                    player.power += 1;
+                                    createFloatingText(seg.x, seg.y, "UPGRADE!");
+                                } else {
+                                    playSound('explode');
+                                }
+                            }
+                        }
+                    }
+
+                    // 移除屏幕底部的龙
+                    if (seg.y > HEIGHT + 50) seg.active = false;
+                }
+
+                // 清理已死掉的段
+                dragons[dIndex] = dragon.filter(s => s.active);
+                
+                // 如果龙只剩下头，或者空了，整条龙移除（头是无敌的，除非身子全没了，这里简化：头不挡子弹，只做装饰和碰撞判定）
+                // 修正：头不应该能被打爆，但如果身子全没了，头就飞走或消失？
+                // 简化逻辑：头也是一段，但血量无限，只有撞击判定。身子全没了，头继续飞出屏幕。
+                if (dragons[dIndex].length === 0) {
+                    dragons.splice(dIndex, 1);
+                }
+            }
+
+            // 5. 更新粒子
+            particles.forEach(p => p.update());
+            particles = particles.filter(p => p.life > 0);
+        }
+
+        function draw() {
+            // 清屏
+            ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+            // 1. 画龙
+            dragons.forEach(dragon => {
+                // 连线
+                if (dragon.length > 1) {
+                    ctx.beginPath();
+                    ctx.moveTo(dragon[0].x, dragon[0].y);
+                    for(let i=1; i<dragon.length; i++) {
+                        ctx.lineTo(dragon[i].x, dragon[i].y);
+                    }
+                    ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+                    ctx.lineWidth = 10;
+                    ctx.stroke();
+                }
+                // 画球
+                dragon.forEach(seg => seg.draw());
+            });
+
+            // 2. 画子弹
+            bullets.forEach(b => b.draw());
+
+            // 3. 画玩家
+            ctx.fillStyle = player.color;
+            ctx.font = '50px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(player.emoji, player.x, player.y);
+            
+            // 4. 画粒子
+            particles.forEach(p => p.draw());
+
+            if (gameRunning) requestAnimationFrame(loop);
+        }
+
+        function loop() {
+            update();
+            draw();
+        }
+
+        function createExplosion(x, y, color) {
+            for(let i=0; i<10; i++) {
+                particles.push(new Particle(x, y, color));
+            }
+        }
+        
+        function createFloatingText(x, y, text) {
+            // 简单实现：用Canvas画一下，或者DOM。这里暂略，直接粒子效果够了
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            modal.style.display = 'flex';
+            modalMsg.innerHTML = `💥 游戏结束！<br>你的得分: ${score}`;
+            startBtn.innerText = "重新挑战";
+        }
+
+        // --- 🕹️ 交互事件 ---
+        
+        // 触摸/鼠标 拖动控制
+        function movePlayer(clientX) {
+            // 限制在屏幕内
+            player.x = clientX * window.devicePixelRatio; 
+            if (player.x < 30) player.x = 30;
+            if (player.x > WIDTH - 30) player.x = WIDTH - 30;
+        }
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault(); // 阻止滚动
+            movePlayer(e.touches[0].clientX);
+        }, {passive: false});
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (gameRunning) movePlayer(e.clientX);
+        });
+
+        startBtn.addEventListener('click', () => {
+            modal.style.display = 'none';
+            if (!gameRunning) {
+                init();
+                gameRunning = true;
+                // 预先生成一条龙
+                spawnDragon();
+                loop();
+            }
+        });
+
+    </script>
+</body>
+</html>
