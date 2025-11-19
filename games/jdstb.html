@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>萌萌猜拳大作战</title>
+    <style>
+        /* --- 基础设置 --- */
+        :root {
+            --bg-color: #fef6e4; /* 奶黄背景 */
+            --card-bg: #ffffff;
+            --primary: #ff94b6; /* 樱花粉 */
+            --secondary: #8bd3dd; /* 薄荷蓝 */
+            --text-color: #001858;
+            --btn-shadow: 0 4px 0 rgba(0,0,0,0.1);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            /* 移动端防误触 */
+            touch-action: manipulation; 
+        }
+
+        /* --- 游戏卡片容器 --- */
+        .game-card {
+            background: var(--card-bg);
+            width: 90%;
+            max-width: 400px;
+            border-radius: 25px;
+            padding: 30px 20px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(255, 148, 182, 0.3);
+            border: 4px solid #fff;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* --- 标题 --- */
+        h1 {
+            color: var(--primary);
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 0px #f3d2c1;
+        }
+
+        /* --- 计分板 --- */
+        .scoreboard {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+
+        .score-box {
+            background: #f3d2c1;
+            padding: 8px 15px;
+            border-radius: 15px;
+            color: #fff;
+        }
+
+        /* --- 战斗区域 (显示出拳结果) --- */
+        .battle-area {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            height: 120px;
+            margin-bottom: 20px;
+        }
+
+        .emoji-display {
+            font-size: 4rem;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .vs-text {
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: #ddd;
+            font-style: italic;
+        }
+
+        /* --- 结果提示 --- */
+        .result-message {
+            height: 30px;
+            margin-bottom: 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--secondary);
+        }
+
+        /* --- 按钮区域 --- */
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .choice-btn {
+            background: #fff;
+            border: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 70px;
+            height: 70px;
+            font-size: 2rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: var(--btn-shadow);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .choice-btn:active {
+            transform: translateY(4px);
+            box-shadow: none;
+            background: var(--primary);
+        }
+
+        /* --- 简单的摇晃动画 --- */
+        @keyframes shake {
+            0% { transform: rotate(0deg); }
+            25% { transform: rotate(15deg); }
+            50% { transform: rotate(0deg); }
+            75% { transform: rotate(-15deg); }
+            100% { transform: rotate(0deg); }
+        }
+
+        .shaking {
+            animation: shake 0.4s ease-in-out;
+        }
+
+        /* --- 底部版权/重置 --- */
+        .footer {
+            margin-top: 30px;
+        }
+        
+        .reset-btn {
+            background: none;
+            border: none;
+            color: #aaa;
+            text-decoration: underline;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-card">
+        <h1>✊ 萌萌猜拳 ✌️</h1>
+        
+        <div class="scoreboard">
+            <div class="score-box" style="background-color: #8bd3dd;">我: <span id="user-score">0</span></div>
+            <div class="score-box" style="background-color: #ff94b6;">电脑: <span id="comp-score">0</span></div>
+        </div>
+
+        <div class="battle-area">
+            <div id="user-choice" class="emoji-display">❔</div>
+            <div class="vs-text">VS</div>
+            <div id="comp-choice" class="emoji-display">❔</div>
+        </div>
+
+        <div id="result-msg" class="result-message">准备好了吗？</div>
+
+        <div class="controls">
+            <button class="choice-btn" onclick="play('rock')">✊</button>
+            <button class="choice-btn" onclick="play('scissors')">✌️</button>
+            <button class="choice-btn" onclick="play('paper')">✋</button>
+        </div>
+
+        <div class="footer">
+            <button class="reset-btn" onclick="resetGame()">重新开始</button>
+        </div>
+    </div>
+
+    <script>
+        let userScore = 0;
+        let compScore = 0;
+        
+        // 映射：代码 -> Emoji
+        const symbols = {
+            'rock': '✊',
+            'scissors': '✌️',
+            'paper': '✋'
+        };
+
+        function play(userSelection) {
+            const userDisplay = document.getElementById('user-choice');
+            const compDisplay = document.getElementById('comp-choice');
+            const msg = document.getElementById('result-msg');
+
+            // 1. 简单的动画前摇（假装思考）
+            userDisplay.innerText = symbols[userSelection];
+            compDisplay.innerText = '...';
+            userDisplay.classList.add('shaking');
+            
+            // 2. 稍微延迟一点出结果，增加真实感
+            setTimeout(() => {
+                userDisplay.classList.remove('shaking');
+                
+                // 电脑随机出拳
+                const choices = ['rock', 'paper', 'scissors'];
+                const compSelection = choices[Math.floor(Math.random() * 3)];
+                compDisplay.innerText = symbols[compSelection];
+
+                // 判断胜负
+                const result = getWinner(userSelection, compSelection);
+
+                // 更新UI
+                if (result === 'win') {
+                    userScore++;
+                    msg.innerText = "🎉 耶！你赢了！";
+                    msg.style.color = "#ff94b6";
+                } else if (result === 'lose') {
+                    compScore++;
+                    msg.innerText = "😭 哎呀，输掉了...";
+                    msg.style.color = "#8bd3dd";
+                } else {
+                    msg.innerText = "🤝 默契满分，平局！";
+                    msg.style.color = "#999";
+                }
+
+                updateScore();
+            }, 200);
+        }
+
+        function getWinner(user, comp) {
+            if (user === comp) return 'draw';
+            if (
+                (user === 'rock' && comp === 'scissors') ||
+                (user === 'scissors' && comp === 'paper') ||
+                (user === 'paper' && comp === 'rock')
+            ) {
+                return 'win';
+            }
+            return 'lose';
+        }
+
+        function updateScore() {
+            document.getElementById('user-score').innerText = userScore;
+            document.getElementById('comp-score').innerText = compScore;
+        }
+
+        function resetGame() {
+            userScore = 0;
+            compScore = 0;
+            updateScore();
+            document.getElementById('user-choice').innerText = '❔';
+            document.getElementById('comp-choice').innerText = '❔';
+            document.getElementById('result-msg').innerText = '准备好了吗？';
+        }
+    </script>
+</body>
+</html>
