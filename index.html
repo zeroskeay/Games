@@ -3,37 +3,221 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>萌萌猜拳：生存大挑战</title>
+    <title>🎮 萌萌游戏乐园</title>
     <style>
-        /* --- 基础变量 --- */
+        /* --- 全局风格设置 --- */
         :root {
             --bg-color: #FFF5F7; /* 浅粉背景 */
-            --card-bg: #ffffff;
             --primary: #FF8FAB; /* 糖果粉 */
-            --primary-dark: #FB6F92;
-            --accent: #FFE29F; /* 奶油黄 */
+            --secondary: #8BD3DD; /* 薄荷蓝 */
+            --accent: #FFD93D; /* 柠檬黄 */
             --text-main: #590D22;
-            --text-light: #A4133C;
-            --win-color: #80B918;
-            --lose-color: #E63946;
+            --card-bg: #FFFFFF;
         }
 
         body {
             margin: 0;
-            font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif; /* 可爱字体 */
+            font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
             background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* --- 头部标题 --- */
+        header {
+            margin-top: 40px;
+            margin-bottom: 30px;
+            text-align: center;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        h1 {
+            font-size: 2.2rem;
+            margin: 0;
+            color: var(--primary);
+            text-shadow: 3px 3px 0px #FFC2D1;
+        }
+
+        p.subtitle {
+            color: #999;
+            margin-top: 10px;
+            font-size: 1rem;
+        }
+
+        /* --- 游戏列表网格 --- */
+        .game-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+            width: 90%;
+            max-width: 800px;
+            padding-bottom: 50px;
+        }
+
+        /* --- 游戏卡片 --- */
+        .game-card {
+            background: var(--card-bg);
+            border-radius: 25px;
+            padding: 20px;
+            text-decoration: none; /* 去掉链接下划线 */
             color: var(--text-main);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            min-height: 100vh;
-            overflow: hidden; /* 防止彩蛋溢出滚动条 */
-            touch-action: manipulation;
+            text-align: center;
+            box-shadow: 0 8px 20px rgba(255, 143, 171, 0.15);
+            border: 4px solid white;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            overflow: hidden;
         }
+
+        /* 卡片悬停/点击效果 */
+        .game-card:hover, .game-card:active {
+            transform: translateY(-8px) scale(1.02);
+            border-color: var(--secondary);
+            box-shadow: 0 15px 30px rgba(139, 211, 221, 0.3);
+        }
+
+        .icon {
+            font-size: 4rem;
+            margin-bottom: 10px;
+            transition: transform 0.3s;
+        }
+
+        .game-card:hover .icon {
+            transform: rotate(15deg) scale(1.1);
+        }
+
+        .game-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: var(--text-main);
+        }
+
+        .game-desc {
+            font-size: 0.85rem;
+            color: #888;
+            line-height: 1.4;
+        }
+
+        /* --- “敬请期待”卡片样式 --- */
+        .game-card.coming-soon {
+            opacity: 0.7;
+            background: #fdfdfd;
+            border: 4px dashed #eee;
+            cursor: default;
+            box-shadow: none;
+        }
+        .game-card.coming-soon:hover {
+            transform: none;
+            border-color: #eee;
+        }
+
+        /* --- 标签 --- */
+        .tag {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--accent);
+            color: #fff;
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        /* --- 底部 --- */
+        footer {
+            margin-top: auto;
+            padding: 20px;
+            color: #aaa;
+            font-size: 0.8rem;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+    </style>
 </head>
 <body>
-  <a href="/games/jdstbv1.html">剪刀石头布</a>
-    
+
+    <header>
+        <h1>🎈 游戏乐园</h1>
+        <p class="subtitle">选择一个小游戏开始吧！</p>
+    </header>
+
+    <div class="game-grid" id="game-container">
+        </div>
+
+    <footer>
+        © 2024 萌萌游戏屋
+    </footer>
+
+    <script>
+        // ==============================
+        // ⚙️ 游戏配置区域
+        // 在这里添加你的新游戏
+        // ==============================
+        const games = [
+            {
+                id: 'rps',
+                name: '猜拳大作战',
+                desc: '生存模式，看你能赢几把？',
+                icon: '✊',
+                folder: 'rps', // 对应 games/下的文件夹名
+                tag: '热门'
+            },
+            // 这是一个示例，展示如何添加第二个游戏
+            // {
+            //     id: 'dice',
+            //     name: '幸运骰子',
+            //     desc: '比比谁的点数大',
+            //     icon: '🎲',
+            //     folder: 'dice',
+            //     tag: '新'
+            // },
+        ];
+
+        // ==============================
+        // 🔧 渲染逻辑 (不需要修改)
+        // ==============================
+        const container = document.getElementById('game-container');
+
+        // 1. 渲染现有游戏
+        games.forEach(game => {
+            const card = document.createElement('a');
+            card.className = 'game-card';
+            // 拼接路径：games/文件夹名/index.html
+            card.href = `games/${game.folder}/index.html`; 
+            
+            let tagHtml = game.tag ? `<div class="tag">${game.tag}</div>` : '';
+
+            card.innerHTML = `
+                ${tagHtml}
+                <div class="icon">${game.icon}</div>
+                <div class="game-title">${game.name}</div>
+                <div class="game-desc">${game.desc}</div>
+            `;
+            container.appendChild(card);
+        });
+
+        // 2. 添加一个“敬请期待”卡片占位
+        const soonCard = document.createElement('div');
+        soonCard.className = 'game-card coming-soon';
+        soonCard.innerHTML = `
+            <div class="icon">🚧</div>
+            <div class="game-title">更多游戏</div>
+            <div class="game-desc">正在开发中...</div>
+        `;
+        container.appendChild(soonCard);
+    </script>
 </body>
 </html>
