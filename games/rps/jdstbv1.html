@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>萌萌猜拳：生存大挑战</title>
+    <style>
+        /* --- 基础变量 --- */
+        :root {
+            --bg-color: #FFF5F7; /* 浅粉背景 */
+            --card-bg: #ffffff;
+            --primary: #FF8FAB; /* 糖果粉 */
+            --primary-dark: #FB6F92;
+            --accent: #FFE29F; /* 奶油黄 */
+            --text-main: #590D22;
+            --text-light: #A4133C;
+            --win-color: #80B918;
+            --lose-color: #E63946;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif; /* 可爱字体 */
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden; /* 防止彩蛋溢出滚动条 */
+            touch-action: manipulation;
+        }
+
+        /* --- 顶部：电脑区域 --- */
+        .computer-area {
+            text-align: center;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .avatar-label {
+            font-size: 0.9rem;
+            background: var(--primary);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 5px rgba(255, 143, 171, 0.4);
+        }
+
+        .computer-bubble {
+            width: 100px;
+            height: 100px;
+            background: white;
+            border: 4px solid var(--primary);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 3.5rem;
+            margin: 0 auto;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+
+        /* --- 中间：状态条 --- */
+        .status-bar {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+
+        .stat-pill {
+            background: #fff;
+            padding: 8px 20px;
+            border-radius: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            border: 2px solid var(--accent);
+        }
+
+        .streak-box {
+            color: #FF9E00;
+            display: none; /* 连胜时才显示 */
+        }
+
+        /* --- 游戏反馈文字 --- */
+        .message-area {
+            height: 40px;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* --- 底部：玩家操作区 --- */
+        .player-area {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            padding-bottom: 30px;
+        }
+
+        .choice-card {
+            background: white;
+            border: 3px solid #eee;
+            border-radius: 20px;
+            width: 80px;
+            height: 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            box-shadow: 0 4px 0 #ddd;
+        }
+
+        .choice-card span {
+            font-size: 2.5rem;
+            pointer-events: none;
+        }
+
+        /* 选中状态 */
+        .choice-card.selected {
+            border-color: var(--primary-dark);
+            background-color: #FFF0F5;
+            transform: translateY(-10px);
+            box-shadow: 0 10px 20px rgba(251, 111, 146, 0.3);
+        }
+
+        /* 未选中状态（变淡） */
+        .choice-card.dimmed {
+            opacity: 0.5;
+            transform: scale(0.9);
+            box-shadow: none;
+        }
+
+        /* --- 弹窗 (Game Over) --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(3px);
+        }
+
+        .modal-content {
+            background: white;
+            width: 80%;
+            max-width: 320px;
+            border-radius: 30px;
+            padding: 30px;
+            text-align: center;
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 5px solid var(--primary);
+        }
+
+        .modal-score {
+            font-size: 3rem;
+            color: var(--primary-dark);
+            margin: 10px 0;
+            font-weight: 900;
+        }
+
+        .restart-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.2rem;
+            border-radius: 50px;
+            cursor: pointer;
+            margin-top: 15px;
+            box-shadow: 0 4px 0 #E04F70;
+            transition: transform 0.1s;
+        }
+        .restart-btn:active {
+            transform: translateY(4px);
+            box-shadow: none;
+        }
+
+        /* --- 动画 --- */
+        @keyframes popIn {
+            from { transform: scale(0.5); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: rotate(0); }
+            25% { transform: rotate(10deg); }
+            75% { transform: rotate(-10deg); }
+        }
+        
+        .shaking { animation: shake 0.4s infinite; }
+
+        /* 彩蛋元素 */
+        .emoji-rain {
+            position: fixed;
+            top: -50px;
+            font-size: 2rem;
+            z-index: 50;
+            animation: fall linear forwards;
+        }
+
+        @keyframes fall {
+            to { transform: translateY(110vh); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="computer-area">
+        <div class="avatar-label">🤖 呆呆机器人</div>
+        <div class="computer-bubble" id="comp-bubble">❔</div>
+    </div>
+
+    <div class="status-bar">
+        <div class="stat-pill">得分: <span id="score-val">0</span></div>
+        <div class="stat-pill streak-box" id="streak-box">🔥 连胜: <span id="streak-val">0</span></div>
+    </div>
+
+    <div class="message-area" id="msg-area">请出拳...</div>
+
+    <div class="player-area" id="player-controls">
+        <div class="choice-card" onclick="playGame('rock', this)">
+            <span>✊</span>
+        </div>
+        <div class="choice-card" onclick="playGame('scissors', this)">
+            <span>✌️</span>
+        </div>
+        <div class="choice-card" onclick="playGame('paper', this)">
+            <span>✋</span>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="game-over-modal">
+        <div class="modal-content">
+            <h2>😢 挑战结束</h2>
+            <p>哎呀，输给机器人了...</p>
+            <div class="modal-score" id="final-score">0</div>
+            <p>本局得分</p>
+            <button class="restart-btn" onclick="resetGame()">再来一局！</button>
+        </div>
+    </div>
+
+    <script>
+        /* --- 游戏状态 --- */
+        let score = 0;
+        let streak = 0;
+        let isPlaying = false; // 防止连点
+
+        const symbols = { 'rock': '✊', 'scissors': '✌️', 'paper': '✋' };
+        const compBubble = document.getElementById('comp-bubble');
+        const msgArea = document.getElementById('msg-area');
+        const scoreVal = document.getElementById('score-val');
+        const streakBox = document.getElementById('streak-box');
+        const streakVal = document.getElementById('streak-val');
+        const modal = document.getElementById('game-over-modal');
+
+        // --- 🔊 音效系统 (Web Audio API) ---
+        // 不需要外部文件，代码生成的音效
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'win') {
+                // 欢快的上行音 (Do-Mi-Sol)
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(523.25, now); // C5
+                osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
+                osc.frequency.setValueAtTime(783.99, now + 0.2); // G5
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                osc.start(now);
+                osc.stop(now + 0.4);
+            } else if (type === 'lose') {
+                // 失望的滑音
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now); 
+                osc.frequency.linearRampToValueAtTime(50, now + 0.4); // 下滑
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.linearRampToValueAtTime(0.01, now + 0.4);
+                osc.start(now);
+                osc.stop(now + 0.4);
+            } else if (type === 'draw') {
+                // 闷闷的声音
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, now);
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.linearRampToValueAtTime(0.01, now + 0.15);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } else if (type === 'cheer') {
+                // 连胜彩蛋音效 (快速琶音)
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(880, now);
+                osc.frequency.setValueAtTime(1109, now + 0.1);
+                osc.frequency.setValueAtTime(1318, now + 0.2);
+                osc.frequency.setValueAtTime(1760, now + 0.3);
+                gainNode.gain.setValueAtTime(0.05, now);
+                gainNode.gain.linearRampToValueAtTime(0.001, now + 0.6);
+                osc.start(now);
+                osc.stop(now + 0.6);
+            }
+        }
+
+        // --- 🎮 核心玩法 ---
+        function playGame(userChoice, element) {
+            if (isPlaying) return;
+            isPlaying = true;
+            
+            // 1. UI 交互：高亮选中，虚化其他
+            const cards = document.querySelectorAll('.choice-card');
+            cards.forEach(c => {
+                if(c === element) {
+                    c.classList.add('selected');
+                    c.classList.remove('dimmed');
+                } else {
+                    c.classList.remove('selected');
+                    c.classList.add('dimmed');
+                }
+            });
+
+            msgArea.innerText = "🤖 思考中...";
+            msgArea.style.color = "#aaa";
+            
+            // 电脑假装思考动画
+            compBubble.classList.add('shaking');
+            compBubble.innerText = '✊'; // 思考时暂时显示拳头
+
+            setTimeout(() => {
+                compBubble.classList.remove('shaking');
+                
+                // 2. 电脑出拳
+                const choices = ['rock', 'scissors', 'paper'];
+                const compChoice = choices[Math.floor(Math.random() * 3)];
+                compBubble.innerText = symbols[compChoice];
+
+                // 3. 判定结果
+                const result = getResult(userChoice, compChoice);
+                handleResult(result);
+
+                // 4. 如果没有Game Over，恢复点击状态
+                if (result !== 'lose') {
+                    setTimeout(() => {
+                        isPlaying = false;
+                        resetUIState(); // 恢复按钮状态
+                    }, 1200); // 1.2秒后恢复，让玩家看清结果
+                }
+
+            }, 600); // 思考时间
+        }
+
+        function getResult(u, c) {
+            if (u === c) return 'draw';
+            if ((u === 'rock' && c === 'scissors') || 
+                (u === 'scissors' && c === 'paper') || 
+                (u === 'paper' && c === 'rock')) {
+                return 'win';
+            }
+            return 'lose';
+        }
+
+        function handleResult(result) {
+            if (result === 'win') {
+                score++;
+                streak++;
+                scoreVal.innerText = score;
+                updateStreak();
+                msgArea.innerText = "🎉 赢啦！继续保持！";
+                msgArea.style.color = "var(--win-color)";
+                playSound('win');
+
+                // 连胜彩蛋检测
+                if (streak === 3) {
+                    setTimeout(() => {
+                        triggerConfetti();
+                        playSound('cheer');
+                        msgArea.innerText = "🔥🔥 3连胜！手气爆炸！";
+                    }, 300);
+                }
+
+            } else if (result === 'draw') {
+                msgArea.innerText = "🤝 平局，再试一次";
+                msgArea.style.color = "gray";
+                playSound('draw');
+                // 平局通常不打断连胜，也不加分
+            } else {
+                // 输了 -> Game Over
+                msgArea.innerText = "💥 被打败了...";
+                msgArea.style.color = "var(--lose-color)";
+                playSound('lose');
+                setTimeout(() => {
+                    showGameOver();
+                }, 800);
+            }
+        }
+
+        // --- 辅助功能 ---
+
+        function updateStreak() {
+            if (streak >= 2) {
+                streakBox.style.display = 'block';
+                streakVal.innerText = streak;
+            } else {
+                streakBox.style.display = 'none';
+            }
+        }
+
+        function resetUIState() {
+            const cards = document.querySelectorAll('.choice-card');
+            cards.forEach(c => {
+                c.classList.remove('selected', 'dimmed');
+            });
+            msgArea.innerText = "请出拳...";
+            msgArea.style.color = "var(--text-main)";
+            compBubble.innerText = '❔';
+        }
+
+        function showGameOver() {
+            document.getElementById('final-score').innerText = score;
+            modal.style.display = 'flex';
+        }
+
+        function resetGame() {
+            score = 0;
+            streak = 0;
+            isPlaying = false;
+            scoreVal.innerText = '0';
+            updateStreak();
+            modal.style.display = 'none';
+            resetUIState();
+        }
+
+        // --- 🎊 连胜彩蛋：Emoji 雨 ---
+        function triggerConfetti() {
+            const emojis = ['🎉', '🔥', '🏆', '✨', '😍'];
+            for (let i = 0; i < 30; i++) {
+                const el = document.createElement('div');
+                el.innerText = emojis[Math.floor(Math.random() * emojis.length)];
+                el.className = 'emoji-rain';
+                el.style.left = Math.random() * 100 + 'vw';
+                el.style.animationDuration = (Math.random() * 2 + 1) + 's'; // 1-3s duration
+                el.style.fontSize = (Math.random() * 1 + 1.5) + 'rem';
+                document.body.appendChild(el);
+
+                // 动画结束后删除元素
+                setTimeout(() => {
+                    el.remove();
+                }, 3000);
+            }
+        }
+    </script>
+</body>
+</html>
