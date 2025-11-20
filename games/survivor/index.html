@@ -88,7 +88,6 @@
         #joystick-zone {
             position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
             width: 200px; height: 200px; pointer-events: auto;
-            /* 隐形触摸区 */
         }
         #stick-bg {
             position: absolute; width: 100px; height: 100px; background: rgba(255,255,255,0.1);
@@ -159,8 +158,7 @@
 
     <div id="upgrade-modal">
         <h2 style="color:#fff; margin-bottom:20px;">升级啦！选择奖励</h2>
-        <div class="card-container" id="cards-box">
-            </div>
+        <div class="card-container" id="cards-box"></div>
     </div>
 
     <div id="game-over">
@@ -174,86 +172,56 @@
     </div>
 
     <script>
-        // --- 🔊 音效系统 ---
+        // --- 音效 ---
         const AudioSys = {
             ctx: null,
-            init() {
-                if(!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-            },
+            init() { if(!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
             play(type) {
                 if(!this.ctx) return;
                 if(this.ctx.state === 'suspended') this.ctx.resume();
-                
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
+                osc.connect(gain); gain.connect(this.ctx.destination);
                 const now = this.ctx.currentTime;
 
-                switch(type) {
-                    case 'shoot': // 魔法弹
-                        osc.type = 'sine';
-                        osc.frequency.setValueAtTime(600, now);
-                        osc.frequency.exponentialRampToValueAtTime(300, now + 0.1);
-                        gain.gain.setValueAtTime(0.1, now);
-                        gain.gain.linearRampToValueAtTime(0, now + 0.1);
-                        osc.start(now); osc.stop(now + 0.1);
-                        break;
-                    case 'hit': // 击中/死亡
-                        osc.type = 'sawtooth';
-                        osc.frequency.setValueAtTime(100 + Math.random()*50, now);
-                        gain.gain.setValueAtTime(0.1, now);
-                        gain.gain.linearRampToValueAtTime(0, now + 0.1);
-                        osc.start(now); osc.stop(now + 0.1);
-                        break;
-                    case 'xp': // 捡经验
-                        osc.type = 'triangle';
-                        osc.frequency.setValueAtTime(800, now);
-                        osc.frequency.linearRampToValueAtTime(1200, now + 0.1);
-                        gain.gain.setValueAtTime(0.05, now);
-                        gain.gain.linearRampToValueAtTime(0, now + 0.1);
-                        osc.start(now); osc.stop(now + 0.1);
-                        break;
-                    case 'levelup': // 升级 (和弦)
-                        [440, 554, 659].forEach((f, i) => {
-                            const o = this.ctx.createOscillator();
-                            const g = this.ctx.createGain();
-                            o.type = 'square';
-                            o.frequency.value = f;
-                            g.gain.setValueAtTime(0.1, now + i*0.1);
-                            g.gain.exponentialRampToValueAtTime(0.01, now + i*0.1 + 0.5);
-                            o.connect(g); g.connect(this.ctx.destination);
-                            o.start(now + i*0.1); o.stop(now + i*0.1 + 0.5);
-                        });
-                        break;
+                if(type==='shoot'){
+                    osc.type = 'sine'; osc.frequency.setValueAtTime(600, now);
+                    osc.frequency.exponentialRampToValueAtTime(300, now + 0.1);
+                    gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.1);
+                    osc.start(now); osc.stop(now+0.1);
+                } else if(type==='hit'){
+                    osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now);
+                    gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now+0.1);
+                    osc.start(now); osc.stop(now+0.1);
+                } else if(type==='xp'){
+                    osc.type = 'triangle'; osc.frequency.setValueAtTime(800, now);
+                    osc.frequency.linearRampToValueAtTime(1200, now+0.1);
+                    gain.gain.setValueAtTime(0.05, now); gain.gain.linearRampToValueAtTime(0, now+0.1);
+                    osc.start(now); osc.stop(now+0.1);
+                } else if(type==='levelup'){
+                    [440, 554, 659].forEach((f,i)=>{
+                        const o=this.ctx.createOscillator(); const g=this.ctx.createGain();
+                        o.type='square'; o.frequency.value=f; g.gain.setValueAtTime(0.1,now+i*0.1);
+                        g.gain.exponentialRampToValueAtTime(0.01,now+i*0.1+0.5);
+                        o.connect(g); g.connect(this.ctx.destination); o.start(now+i*0.1); o.stop(now+i*0.1+0.5);
+                    });
                 }
             }
         };
 
-        // --- 🛠️ 游戏引擎 ---
+        // --- 引擎 ---
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         let WIDTH, HEIGHT;
 
         const Game = {
-            state: 'menu', // menu, playing, paused, over
-            frames: 0,
-            time: 0, // 秒
-            kills: 0,
-            difficulty: 'normal',
-            
-            player: null,
-            enemies: [],
-            xpGems: [],
-            bullets: [],
-            texts: [], // 飘字
-            
+            state: 'menu',
+            frames: 0, time: 0, kills: 0, difficulty: 'normal',
+            player: null, enemies: [], xpGems: [], bullets: [], texts: [],
             camera: {x:0, y:0},
-            
-            // 技能池
             upgrades: [
                 { id: 'speed', name: '疾风步', desc: '移动速度 +20%', icon: '👟', type: 'stat', stat: 'speed', val: 1 },
-                { id: 'rate', name: '快枪手', desc: '射击频率 +20%', icon: '⚡', type: 'stat', stat: 'fireRate', val: 0.8 }, // 间隔变小
+                { id: 'rate', name: '快枪手', desc: '射击频率 +20%', icon: '⚡', type: 'stat', stat: 'fireRate', val: 0.8 },
                 { id: 'damage', name: '强力弹', desc: '子弹伤害 +5', icon: '💥', type: 'stat', stat: 'damage', val: 5 },
                 { id: 'multi', name: '多重射击', desc: '子弹数量 +1', icon: '🍒', type: 'stat', stat: 'bulletCount', val: 1 },
                 { id: 'aura', name: '大蒜光环', desc: '获得伤害光环/范围变大', icon: '🧄', type: 'weapon', weapon: 'aura' }
@@ -266,24 +234,13 @@
                 document.getElementById('start-screen').style.display = 'none';
                 
                 this.player = new Player();
-                this.enemies = [];
-                this.xpGems = [];
-                this.bullets = [];
-                this.texts = [];
-                this.frames = 0;
-                this.time = 0;
-                this.kills = 0;
+                this.enemies = []; this.xpGems = []; this.bullets = []; this.texts = [];
+                this.frames = 0; this.time = 0; this.kills = 0;
                 
                 this.resize();
                 this.loop();
                 
-                // 计时器
-                setInterval(() => {
-                    if(this.state === 'playing') {
-                        this.time++;
-                        this.updateTimerUI();
-                    }
-                }, 1000);
+                setInterval(() => { if(this.state === 'playing') { this.time++; this.updateTimerUI(); } }, 1000);
             },
             
             pause() {
@@ -292,23 +249,15 @@
                 this.generateUpgrades();
                 AudioSys.play('levelup');
             },
-            
             resume() {
                 this.state = 'playing';
                 document.getElementById('upgrade-modal').style.display = 'none';
                 this.loop();
             },
-
-            resize() {
-                WIDTH = window.innerWidth;
-                HEIGHT = window.innerHeight;
-                canvas.width = WIDTH;
-                canvas.height = HEIGHT;
-            },
+            resize() { WIDTH = window.innerWidth; HEIGHT = window.innerHeight; canvas.width = WIDTH; canvas.height = HEIGHT; },
             
             loop() {
                 if(this.state !== 'playing') return;
-                
                 this.frames++;
                 this.update();
                 this.draw();
@@ -316,23 +265,15 @@
             },
             
             update() {
-                // 1. 生成敌人
-                let spawnRate = 60; // 默认1秒一个
-                let speedMod = 1;
+                // 生成
+                let spawnRate = 60; let speedMod = 1;
                 if (this.difficulty === 'easy') spawnRate = 80;
                 if (this.difficulty === 'hard') { spawnRate = 30; speedMod = 1.5; }
-                
-                // 随着时间推移，怪越来越多
                 spawnRate = Math.max(10, spawnRate - Math.floor(this.time / 10));
 
-                if (this.frames % spawnRate === 0) {
-                    this.spawnEnemy(speedMod);
-                }
+                if (this.frames % spawnRate === 0) this.spawnEnemy(speedMod);
 
-                // 2. 实体更新
                 this.player.update();
-                
-                // 相机跟随 (平滑)
                 this.camera.x += (this.player.x - WIDTH/2 - this.camera.x) * 0.1;
                 this.camera.y += (this.player.y - HEIGHT/2 - this.camera.y) * 0.1;
 
@@ -341,40 +282,28 @@
                 this.xpGems.forEach(x => x.update());
                 this.texts.forEach(t => t.update());
 
-                // 3. 清理
+                // 清理
                 this.enemies = this.enemies.filter(e => !e.dead);
-                this.bullets = this.bullets.filter(b => !b.active);
+                this.bullets = this.bullets.filter(b => b.active); // 👈 修复的 Bug 在这里
                 this.xpGems = this.xpGems.filter(x => !x.collected);
                 this.texts = this.texts.filter(t => t.life > 0);
 
-                // 4. 碰撞检测
                 this.checkCollisions();
             },
 
             draw() {
-                // 背景 (画网格以体现移动)
-                ctx.fillStyle = '#1a1a2e';
-                ctx.fillRect(0, 0, WIDTH, HEIGHT);
-                
+                ctx.fillStyle = '#1a1a2e'; ctx.fillRect(0, 0, WIDTH, HEIGHT);
                 ctx.save();
-                // 偏移相机
-                // 取整防止模糊
-                const cx = Math.floor(this.camera.x); 
-                const cy = Math.floor(this.camera.y);
+                const cx = Math.floor(this.camera.x); const cy = Math.floor(this.camera.y);
                 
-                // 画网格线
-                ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 2;
                 const gridSize = 100;
-                const offsetX = -cx % gridSize;
-                const offsetY = -cy % gridSize;
-                
+                const offsetX = -cx % gridSize; const offsetY = -cy % gridSize;
                 ctx.beginPath();
                 for(let x=offsetX; x<WIDTH; x+=gridSize) { ctx.moveTo(x,0); ctx.lineTo(x,HEIGHT); }
                 for(let y=offsetY; y<HEIGHT; y+=gridSize) { ctx.moveTo(0,y); ctx.lineTo(WIDTH,y); }
                 ctx.stroke();
 
-                // 所有的绘制都需要减去 cx, cy
                 ctx.translate(-cx, -cy);
 
                 this.xpGems.forEach(x => x.draw());
@@ -387,75 +316,50 @@
             },
 
             spawnEnemy(speedMod) {
-                // 在屏幕外生成
                 const angle = Math.random() * Math.PI * 2;
-                const dist = Math.max(WIDTH, HEIGHT) * 0.8; // 稍微远一点
+                const dist = Math.max(WIDTH, HEIGHT) * 0.8;
                 const x = this.player.x + Math.cos(angle) * dist;
                 const y = this.player.y + Math.sin(angle) * dist;
-                
-                // 随时间变强
                 const hp = 10 + Math.floor(this.time / 30) * 5;
                 this.enemies.push(new Enemy(x, y, hp, speedMod));
             },
 
             checkCollisions() {
-                // 子弹打怪
+                // 子弹 -> 怪
                 this.bullets.forEach(b => {
                     this.enemies.forEach(e => {
                         if (b.active && !e.dead && checkRectCollide(b, e)) {
-                            if(b.type !== 'aura') b.active = false; // 光环不消失
-                            // 伤害判断 (简单的无敌帧逻辑在Enemy里)
+                            if(b.type !== 'aura') b.active = false;
                             e.takeDamage(b.damage);
                         }
                     });
                 });
-
-                // 人吃经验
+                // 人 -> 经验
                 this.xpGems.forEach(g => {
                     const dist = Math.hypot(g.x - this.player.x, g.y - this.player.y);
-                    if (dist < this.player.pickupRange) {
-                        g.flyToPlayer();
-                    }
+                    if (dist < this.player.pickupRange) g.flyToPlayer();
                     if (dist < this.player.size) {
-                        g.collected = true;
-                        this.player.gainXp(g.val);
-                        AudioSys.play('xp');
+                        g.collected = true; this.player.gainXp(g.val); AudioSys.play('xp');
                     }
                 });
-
-                // 怪打人
+                // 怪 -> 人
                 this.enemies.forEach(e => {
                     const dist = Math.hypot(e.x - this.player.x, e.y - this.player.y);
-                    if (dist < this.player.size + e.size - 5) {
-                        this.gameOver();
-                    }
+                    if (dist < this.player.size + e.size - 5) this.gameOver();
                 });
             },
             
             generateUpgrades() {
-                const box = document.getElementById('cards-box');
-                box.innerHTML = '';
-                // 随机选3个不重复的
-                const pool = [...this.upgrades];
-                const choices = [];
+                const box = document.getElementById('cards-box'); box.innerHTML = '';
+                const pool = [...this.upgrades]; const choices = [];
                 for(let i=0; i<3; i++) {
                     if(pool.length === 0) break;
                     const idx = Math.floor(Math.random() * pool.length);
                     choices.push(pool[idx]);
-                    // 不移除，允许重复出现属性升级，但如果是解锁类武器可以移除
-                    // 简单起见不移除
                 }
-
                 choices.forEach(u => {
-                    const div = document.createElement('div');
-                    div.className = 'upgrade-card';
-                    div.innerHTML = `
-                        <div class="card-icon">${u.icon}</div>
-                        <div class="card-info">
-                            <h3>${u.name}</h3>
-                            <p>${u.desc}</p>
-                        </div>
-                    `;
+                    const div = document.createElement('div'); div.className = 'upgrade-card';
+                    div.innerHTML = `<div class="card-icon">${u.icon}</div><div class="card-info"><h3>${u.name}</h3><p>${u.desc}</p></div>`;
                     div.onclick = () => this.applyUpgrade(u);
                     box.appendChild(div);
                 });
@@ -468,10 +372,7 @@
                 } else if (u.type === 'weapon') {
                     if(u.weapon === 'aura') {
                         if(!this.player.weapons.aura) this.player.weapons.aura = { active:true, size: 60, damage: 2 };
-                        else {
-                            this.player.weapons.aura.size += 20;
-                            this.player.weapons.aura.damage += 1;
-                        }
+                        else { this.player.weapons.aura.size += 20; this.player.weapons.aura.damage += 1; }
                     }
                 }
                 this.resume();
@@ -492,301 +393,162 @@
             }
         };
 
-        function checkRectCollide(a, b) {
-            return Math.abs(a.x - b.x) < (a.size + b.size)/2 && Math.abs(a.y - b.y) < (a.size + b.size)/2;
-        }
+        function checkRectCollide(a, b) { return Math.abs(a.x - b.x) < (a.size + b.size)/2 && Math.abs(a.y - b.y) < (a.size + b.size)/2; }
 
-        // --- 🤺 角色类 ---
+        // --- 实体 ---
         class Player {
             constructor() {
-                this.x = 0; this.y = 0;
-                this.size = 20;
-                this.speed = 4;
-                this.xp = 0;
-                this.maxXp = 10;
-                this.level = 1;
-                
-                // 战斗属性
-                this.fireRate = 40; // 帧数间隔
-                this.fireTimer = 0;
-                this.damage = 10;
-                this.bulletCount = 1;
-                this.pickupRange = 80;
-                
-                this.weapons = { aura: null }; // 武器槽
-                
-                // 移动向量
-                this.vx = 0; this.vy = 0;
+                this.x = 0; this.y = 0; this.size = 20; this.speed = 4;
+                this.xp = 0; this.maxXp = 10; this.level = 1;
+                this.fireRate = 40; this.fireTimer = 0; this.damage = 10;
+                this.bulletCount = 1; this.pickupRange = 80;
+                this.weapons = { aura: null }; this.facingRight = true;
             }
-
             update() {
-                // 移动
                 if (joystick.active) {
-                    this.x += joystick.x * this.speed;
-                    this.y += joystick.y * this.speed;
-                    // 简单的翻转朝向
+                    this.x += joystick.x * this.speed; this.y += joystick.y * this.speed;
                     this.facingRight = joystick.x > 0;
                 }
-
-                // 自动攻击 (最近的敌人)
                 this.fireTimer--;
-                if (this.fireTimer <= 0) {
-                    this.shoot();
-                    this.fireTimer = this.fireRate;
-                }
-                
-                // 光环攻击
-                if (this.weapons.aura) {
-                    // 每一帧都对光环内的敌人造成微量伤害
-                    if(Game.frames % 10 === 0) {
-                        Game.enemies.forEach(e => {
-                            const dist = Math.hypot(e.x - this.x, e.y - this.y);
-                            if(dist < this.weapons.aura.size) {
-                                e.takeDamage(this.weapons.aura.damage, false); // 光环不击退
-                            }
-                        });
-                    }
+                if (this.fireTimer <= 0) { this.shoot(); this.fireTimer = this.fireRate; }
+                if (this.weapons.aura && Game.frames % 10 === 0) {
+                    Game.enemies.forEach(e => {
+                        if(Math.hypot(e.x - this.x, e.y - this.y) < this.weapons.aura.size) e.takeDamage(this.weapons.aura.damage, false);
+                    });
                 }
             }
-            
             shoot() {
-                // 找最近的敌人
-                let target = null;
-                let minDist = 400; // 射程
-                Game.enemies.forEach(e => {
-                    const d = Math.hypot(e.x - this.x, e.y - this.y);
-                    if (d < minDist) { minDist = d; target = e; }
-                });
-                
+                let target = null; let minDist = 400;
+                Game.enemies.forEach(e => { const d = Math.hypot(e.x - this.x, e.y - this.y); if (d < minDist) { minDist = d; target = e; } });
                 if (target) {
                     AudioSys.play('shoot');
-                    // 发射多重子弹
                     for(let i=0; i<this.bulletCount; i++) {
                         setTimeout(() => {
-                            // 稍微偏转一点角度
                             const angle = Math.atan2(target.y - this.y, target.x - this.x) + (Math.random()-0.5)*0.2;
                             Game.bullets.push(new Bullet(this.x, this.y, angle, this.damage));
                         }, i * 100);
                     }
                 }
             }
-
             gainXp(val) {
                 this.xp += val;
                 if (this.xp >= this.maxXp) {
-                    this.xp -= this.maxXp;
-                    this.level++;
-                    this.maxXp = Math.floor(this.maxXp * 1.2);
+                    this.xp -= this.maxXp; this.level++; this.maxXp = Math.floor(this.maxXp * 1.2);
                     document.getElementById('level-val').innerText = this.level;
                     Game.pause();
                 }
-                // 更新UI条
                 document.getElementById('xp-bar').style.width = (this.xp / this.maxXp * 100) + '%';
             }
-
             draw() {
-                // 绘制光环
                 if (this.weapons.aura) {
-                    ctx.beginPath();
-                    ctx.arc(this.x, this.y, this.weapons.aura.size, 0, Math.PI*2);
-                    ctx.fillStyle = 'rgba(255, 215, 0, 0.1)';
-                    ctx.fill();
-                    ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
-                    ctx.stroke();
+                    ctx.beginPath(); ctx.arc(this.x, this.y, this.weapons.aura.size, 0, Math.PI*2);
+                    ctx.fillStyle = 'rgba(255, 215, 0, 0.1)'; ctx.fill(); ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)'; ctx.stroke();
                 }
-
-                // 绘制人物 (Emoji)
-                ctx.font = '30px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.save();
-                ctx.translate(this.x, this.y);
-                if (!this.facingRight) ctx.scale(-1, 1); // 镜像翻转
-                ctx.fillText('🤠', 0, 0);
-                ctx.restore();
+                ctx.font = '30px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.save(); ctx.translate(this.x, this.y); if (!this.facingRight) ctx.scale(-1, 1);
+                ctx.fillText('🤠', 0, 0); ctx.restore();
             }
         }
 
-        // --- 🧟 敌人类 ---
         class Enemy {
             constructor(x, y, hp, speedMod) {
-                this.x = x; this.y = y;
-                this.hp = hp;
-                this.maxHp = hp;
-                this.speed = (1 + Math.random()) * speedMod;
-                this.size = 20;
-                this.dead = false;
-                this.emoji = ['🧟', '🧟‍♂️', '👻', '🦇'][Math.floor(Math.random()*4)];
+                this.x = x; this.y = y; this.hp = hp; this.maxHp = hp;
+                this.speed = (1 + Math.random()) * speedMod; this.size = 20;
+                this.dead = false; this.emoji = ['🧟', '🧟‍♂️', '👻', '🦇'][Math.floor(Math.random()*4)];
                 this.hitFlash = 0;
             }
             update() {
-                // 追逐玩家
-                const dx = Game.player.x - this.x;
-                const dy = Game.player.y - this.y;
+                const dx = Game.player.x - this.x; const dy = Game.player.y - this.y;
                 const dist = Math.hypot(dx, dy);
-                
-                if (dist > 0) {
-                    this.x += (dx / dist) * this.speed;
-                    this.y += (dy / dist) * this.speed;
-                }
+                if (dist > 0) { this.x += (dx / dist) * this.speed; this.y += (dy / dist) * this.speed; }
                 if (this.hitFlash > 0) this.hitFlash--;
             }
             takeDamage(dmg, knockback=true) {
-                this.hp -= dmg;
-                this.hitFlash = 5;
+                this.hp -= dmg; this.hitFlash = 5;
                 Game.texts.push(new FloatingText(this.x, this.y, Math.floor(dmg)));
-                
                 if(knockback) {
-                    // 简单击退
                     const angle = Math.atan2(this.y - Game.player.y, this.x - Game.player.x);
-                    this.x += Math.cos(angle) * 10;
-                    this.y += Math.sin(angle) * 10;
+                    this.x += Math.cos(angle) * 10; this.y += Math.sin(angle) * 10;
                 }
-
                 if (this.hp <= 0) {
-                    this.dead = true;
-                    Game.kills++;
-                    document.getElementById('kill-val').innerText = Game.kills;
-                    Game.xpGems.push(new XpGem(this.x, this.y));
-                    AudioSys.play('hit');
+                    this.dead = true; Game.kills++; document.getElementById('kill-val').innerText = Game.kills;
+                    Game.xpGems.push(new XpGem(this.x, this.y)); AudioSys.play('hit');
                 }
             }
             draw() {
-                ctx.font = '25px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
+                ctx.font = '25px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                 ctx.globalAlpha = this.hitFlash > 0 ? 0.5 : 1;
-                
-                ctx.save();
-                ctx.translate(this.x, this.y);
-                if (this.x > Game.player.x) ctx.scale(-1, 1);
-                ctx.fillText(this.emoji, 0, 0);
-                ctx.restore();
-                ctx.globalAlpha = 1;
+                ctx.save(); ctx.translate(this.x, this.y); if (this.x > Game.player.x) ctx.scale(-1, 1);
+                ctx.fillText(this.emoji, 0, 0); ctx.restore(); ctx.globalAlpha = 1;
             }
         }
 
-        // --- 🔮 掉落物与子弹 ---
         class Bullet {
             constructor(x, y, angle, damage) {
                 this.x = x; this.y = y;
-                this.speed = 12;
-                this.damage = damage;
+                this.speed = 12; // 速度定义要在使用前
                 this.vx = Math.cos(angle) * this.speed;
                 this.vy = Math.sin(angle) * this.speed;
-                this.life = 60; // 存在时间
-                this.active = true;
-                this.size = 10;
+                this.damage = damage;
+                this.life = 60; this.active = true; this.size = 10;
             }
-            update() {
-                this.x += this.vx;
-                this.y += this.vy;
-                this.life--;
-                if(this.life <= 0) this.active = false;
-            }
+            update() { this.x += this.vx; this.y += this.vy; this.life--; if(this.life <= 0) this.active = false; }
             draw() {
-                ctx.fillStyle = '#4facfe';
-                ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
-                // 拖尾
-                ctx.fillStyle = 'rgba(79, 172, 254, 0.3)';
-                ctx.beginPath(); ctx.arc(this.x - this.vx, this.y - this.vy, 3, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#4facfe'; ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = 'rgba(79, 172, 254, 0.3)'; ctx.beginPath(); ctx.arc(this.x - this.vx, this.y - this.vy, 3, 0, Math.PI*2); ctx.fill();
             }
         }
 
         class XpGem {
-            constructor(x, y) {
-                this.x = x; this.y = y;
-                this.val = 2;
-                this.collected = false;
-                this.flying = false;
-            }
-            update() {} // 静态，除非被吸附
+            constructor(x, y) { this.x = x; this.y = y; this.val = 2; this.collected = false; }
+            update() {}
             flyToPlayer() {
-                this.flying = true;
-                const dx = Game.player.x - this.x;
-                const dy = Game.player.y - this.y;
-                this.x += dx * 0.2;
-                this.y += dy * 0.2;
+                const dx = Game.player.x - this.x; const dy = Game.player.y - this.y;
+                this.x += dx * 0.2; this.y += dy * 0.2;
             }
-            draw() {
-                ctx.font = '15px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('💎', this.x, this.y);
-            }
+            draw() { ctx.font = '15px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('💎', this.x, this.y); }
         }
 
         class FloatingText {
-            constructor(x, y, text) {
-                this.x = x; this.y = y; this.text = text;
-                this.life = 30;
-            }
+            constructor(x, y, text) { this.x = x; this.y = y; this.text = text; this.life = 30; }
             update() { this.y -= 1; this.life--; }
             draw() {
                 ctx.fillStyle = `rgba(255, 255, 255, ${this.life/30})`;
-                ctx.font = 'bold 12px Arial';
-                ctx.fillText(this.text, this.x, this.y);
+                ctx.font = 'bold 12px Arial'; ctx.fillText(this.text, this.x, this.y);
             }
         }
 
-        // --- 🕹️ 摇杆控制 ---
+        // --- 摇杆 ---
         const stick = document.getElementById('stick');
         const stickBg = document.getElementById('stick-bg');
         const zone = document.getElementById('joystick-zone');
         const joystick = { x: 0, y: 0, active: false, originX: 0, originY: 0 };
 
         zone.addEventListener('touchstart', e => {
-            e.preventDefault();
-            const t = e.touches[0];
-            joystick.active = true;
-            joystick.originX = t.clientX;
-            joystick.originY = t.clientY;
-            
-            stickBg.style.display = 'block';
-            stick.style.display = 'block';
-            // 将摇杆视觉定位到手指位置
-            const rect = zone.getBoundingClientRect();
-            const relX = t.clientX - rect.left;
-            const relY = t.clientY - rect.top;
-            stickBg.style.left = relX + 'px';
-            stickBg.style.top = relY + 'px';
-            stick.style.left = relX + 'px';
-            stick.style.top = relY + 'px';
+            e.preventDefault(); const t = e.touches[0]; joystick.active = true;
+            joystick.originX = t.clientX; joystick.originY = t.clientY;
+            stickBg.style.display = 'block'; stick.style.display = 'block';
+            const r = zone.getBoundingClientRect();
+            const relX = t.clientX - r.left; const relY = t.clientY - r.top;
+            stickBg.style.left = relX+'px'; stickBg.style.top = relY+'px';
+            stick.style.left = relX+'px'; stick.style.top = relY+'px';
         }, {passive: false});
 
         zone.addEventListener('touchmove', e => {
-            e.preventDefault();
-            if(!joystick.active) return;
+            e.preventDefault(); if(!joystick.active) return;
             const t = e.touches[0];
-            const dx = t.clientX - joystick.originX;
-            const dy = t.clientY - joystick.originY;
-            const dist = Math.hypot(dx, dy);
-            const maxDist = 50;
-            
-            const scale = Math.min(1, maxDist / dist);
-            const moveX = dx * scale || 0; // fix NaN if dist 0
-            const moveY = dy * scale || 0;
-            
-            // 视觉移动
-            stick.style.transform = `translate(calc(-50% + ${moveX}px), calc(-50% + ${moveY}px))`;
-            
-            // 逻辑输出 (-1 to 1)
-            joystick.x = moveX / maxDist;
-            joystick.y = moveY / maxDist;
+            const dx = t.clientX - joystick.originX; const dy = t.clientY - joystick.originY;
+            const dist = Math.hypot(dx, dy); const max = 50;
+            const scale = Math.min(1, max / dist);
+            const mx = dx * scale; const my = dy * scale;
+            stick.style.transform = `translate(calc(-50% + ${mx}px), calc(-50% + ${my}px))`;
+            joystick.x = mx / max; joystick.y = my / max;
         }, {passive: false});
 
-        const resetJoystick = () => {
-            joystick.active = false;
-            joystick.x = 0; joystick.y = 0;
-            stickBg.style.display = 'none';
-            stick.style.display = 'none';
-        };
-        zone.addEventListener('touchend', resetJoystick);
-        zone.addEventListener('touchcancel', resetJoystick);
+        const resetJoystick = () => { joystick.active = false; joystick.x=0; joystick.y=0; stickBg.style.display='none'; stick.style.display='none'; };
+        zone.addEventListener('touchend', resetJoystick); zone.addEventListener('touchcancel', resetJoystick);
 
-        // 窗口大小改变
-        window.addEventListener('resize', () => Game.resize());
-        Game.resize();
+        window.addEventListener('resize', () => Game.resize()); Game.resize();
 
     </script>
 </body>
