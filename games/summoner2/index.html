@@ -8,7 +8,7 @@
         :root {
             --bg: #200f21;
             --accent: #b98eff;
-            --item-rare: #00d2d3; /* 稀有道具颜色 */
+            --item-rare: #00d2d3;
             --item-heal: #ff6b6b;
         }
 
@@ -26,7 +26,7 @@
             pointer-events: none; display: flex; flex-direction: column;
         }
 
-        /* 顶部信息 */
+        /* HUD */
         .hud {
             padding: 15px; display: flex; justify-content: space-between;
             background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent);
@@ -38,13 +38,12 @@
             font-size: 0.9rem;
         }
 
-        /* 底部操作区 */
+        /* 操作区 */
         .controls {
             margin-top: auto; padding: 20px; display: flex; justify-content: space-between;
             align-items: flex-end; pointer-events: auto;
         }
 
-        /* 摇杆 */
         #joystick-zone { width: 150px; height: 150px; position: relative; }
         #stick-bg {
             position: absolute; width: 100px; height: 100px; border-radius: 50%;
@@ -57,7 +56,6 @@
             box-shadow: 0 0 10px var(--accent);
         }
 
-        /* 按钮 */
         .btn-group { display: flex; gap: 15px; margin-bottom: 20px; }
         .action-btn {
             width: 75px; height: 75px; border-radius: 50%; border: none;
@@ -73,14 +71,13 @@
         #btn-cmd { border-color: #0be881; color: #0be881; }
         .btn-label { font-size: 0.7rem; margin-top: -5px; font-weight: bold; }
 
-        /* 开始屏幕 (难度选择) */
+        /* 开始屏幕 */
         #start-screen {
             position: absolute; top:0; left:0; width:100%; height:100%;
             background: rgba(32, 15, 33, 0.95); z-index: 200; pointer-events: auto;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
         .title { font-size: 2.5rem; color: var(--accent); margin-bottom: 40px; text-shadow: 0 0 20px var(--accent); }
-        
         .diff-btn {
             width: 220px; padding: 15px; margin: 10px; border-radius: 12px;
             background: rgba(255,255,255,0.1); border: 2px solid #555;
@@ -93,7 +90,7 @@
         .diff-name { font-size: 1.1rem; font-weight: bold; color: #fff; }
         .diff-desc { font-size: 0.8rem; margin-top: 3px; }
 
-        /* 游戏结束 */
+        /* 结算 */
         #modal {
             position: absolute; top:0; left:0; width:100%; height:100%;
             background: rgba(0,0,0,0.9); display: none;
@@ -108,7 +105,7 @@
         /* 飘字 */
         .floating-text {
             position: absolute; font-weight: bold; pointer-events: none;
-            text-shadow: 1px 1px 0 #000; animation: floatUp 1s forwards;
+            text-shadow: 1px 1px 0 #000; animation: floatUp 1s forwards; white-space: nowrap;
         }
         @keyframes floatUp { 
             0% { transform: translateY(0) scale(1); opacity: 1; }
@@ -156,7 +153,7 @@
             <div class="diff-icon">👶</div>
             <div class="diff-info">
                 <div class="diff-name">见习巫师</div>
-                <div class="diff-desc">上限 5 | 敌袭稀疏</div>
+                <div class="diff-desc">怪少 | 仇恨低</div>
             </div>
         </div>
         
@@ -164,7 +161,7 @@
             <div class="diff-icon">🧙‍♂️</div>
             <div class="diff-info">
                 <div class="diff-name">亡灵法师</div>
-                <div class="diff-desc">上限 3 | 敌袭正常</div>
+                <div class="diff-desc">正常 | 优先攻击玩家</div>
             </div>
         </div>
         
@@ -172,7 +169,7 @@
             <div class="diff-icon">☠️</div>
             <div class="diff-info">
                 <div class="diff-name">巫妖王</div>
-                <div class="diff-desc">上限 2 | 敌袭疯狂</div>
+                <div class="diff-desc">尸潮 | 极高仇恨</div>
             </div>
         </div>
     </div>
@@ -185,7 +182,7 @@
     </div>
 
     <script>
-        // --- 🔊 音效系统 ---
+        // --- 🔊 音效系统 (Web Audio API) ---
         const AudioSys = {
             ctx: null,
             init() { if(!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
@@ -203,13 +200,20 @@
                 osc.start();
                 osc.stop(this.ctx.currentTime + duration);
             },
-            playTame() { this.playTone(600, 'sine', 0.2, 0.2); setTimeout(()=>this.playTone(900, 'sine', 0.4, 0.2), 100); },
+            // 修复：转化时的持续嗡嗡声
+            playBeam() {
+                this.playTone(100 + Math.random() * 50, 'sawtooth', 0.15, 0.05);
+            },
+            // 转化成功
+            playTame() { 
+                this.playTone(600, 'sine', 0.1, 0.2); 
+                setTimeout(()=>this.playTone(1200, 'sine', 0.3, 0.2), 100); 
+            },
             playItem(type) {
-                if(type === 'CAP') { // 升级音效
+                if(type === 'CAP') { 
                     this.playTone(400, 'square', 0.1, 0.1);
-                    setTimeout(()=>this.playTone(600, 'square', 0.1, 0.1), 100);
-                    setTimeout(()=>this.playTone(800, 'square', 0.3, 0.1), 200);
-                } else { // 治疗音效
+                    setTimeout(()=>this.playTone(800, 'square', 0.2, 0.1), 100);
+                } else { 
                     this.playTone(500, 'triangle', 0.2, 0.1);
                 }
             }
@@ -224,7 +228,7 @@
             state: 'menu',
             player: null,
             entities: [],
-            items: [], // 掉落物
+            items: [],
             particles: [],
             score: 0,
             camX: 0, camY: 0,
@@ -236,7 +240,7 @@
             difficulty: 'normal',
             currentCap: 3,
             hardCap: 10,
-            spawnRate: 100, // 帧数间隔
+            spawnRate: 60, // 初始刷新间隔 (帧)
             waveTimer: 0,
 
             start(diff) {
@@ -245,17 +249,22 @@
                 this.state = 'playing';
                 document.getElementById('start-screen').style.display = 'none';
                 
-                // 初始化参数
+                // 难度配置
                 let startHp = 100;
-                if (diff === 'easy') { this.currentCap = 5; startHp = 100; this.spawnRate = 120; }
-                if (diff === 'normal') { this.currentCap = 3; startHp = 60; this.spawnRate = 90; }
-                if (diff === 'hard') { this.currentCap = 2; startHp = 30; this.spawnRate = 50; }
+                if (diff === 'easy') { 
+                    this.currentCap = 5; startHp = 100; this.spawnRate = 80; 
+                } else if (diff === 'normal') { 
+                    this.currentCap = 3; startHp = 60; this.spawnRate = 50; 
+                } else if (diff === 'hard') { 
+                    this.currentCap = 2; startHp = 30; this.spawnRate = 30; 
+                }
 
                 this.player = new Player(0, 0, startHp);
                 this.entities = [];
                 this.items = [];
                 this.particles = [];
                 this.score = 0;
+                this.waveTimer = 0;
                 this.updateUI();
                 
                 this.loop();
@@ -271,13 +280,15 @@
             loop() {
                 if(this.state !== 'playing') return;
 
-                // 1. 生成逻辑
+                // 1. 生成逻辑 (优化版)
                 this.waveTimer++;
-                // 动态调整生成速度：每分钟加快一点
-                const currentRate = Math.max(20, this.spawnRate - Math.floor(this.waveTimer / 600));
+                // 难度随时间增加：每 600帧(10秒) 刷新加快，怪上限增加
+                const timeFactor = Math.floor(this.waveTimer / 600); 
+                let currentRate = Math.max(15, this.spawnRate - timeFactor * 2); // 极限每15帧刷一只
                 
                 const wildCount = this.entities.filter(e => e.team === 'wild').length;
-                const maxWild = 10 + Math.floor(this.waveTimer / 300); // 敌人上限随时间增加
+                let maxWild = 10 + timeFactor * 2; // 初始10只，无限增长
+                if (this.difficulty === 'hard') maxWild += 10; // 困难模式怪更多
 
                 if (this.waveTimer % currentRate === 0 && wildCount < maxWild) {
                     this.spawnEnemy();
@@ -286,7 +297,7 @@
                 // 2. 实体更新
                 this.player.update();
                 
-                // 相机跟随
+                // 相机跟随 (稍微滞后一点，更有手感)
                 this.camX += (this.player.x - WIDTH/2 - this.camX) * 0.1;
                 this.camY += (this.player.y - HEIGHT/2 - this.camY) * 0.1;
 
@@ -336,7 +347,7 @@
                     ctx.moveTo(this.player.x, this.player.y);
                     ctx.lineTo(this.tameTarget.x, this.tameTarget.y);
                     ctx.strokeStyle = '#b98eff';
-                    ctx.lineWidth = 3 + Math.random()*3;
+                    ctx.lineWidth = 3 + Math.random()*4;
                     ctx.stroke();
                 }
 
@@ -350,31 +361,28 @@
 
             spawnEnemy() {
                 const angle = Math.random() * Math.PI * 2;
-                const dist = Math.max(WIDTH, HEIGHT) * 0.6 + Math.random() * 200;
+                // 敌人生成在视野外
+                const dist = Math.max(WIDTH, HEIGHT) * 0.6 + Math.random() * 300;
                 const x = this.player.x + Math.cos(angle) * dist;
                 const y = this.player.y + Math.sin(angle) * dist;
                 
                 const r = Math.random();
                 let type = 'NORMAL';
-                if (r < 0.15) type = 'TANK';
-                else if (r < 0.3) type = 'SPEED';
-                else if (r < 0.4) type = 'BOOM';
+                if (r < 0.2) type = 'TANK'; // 坦克几率增加
+                else if (r < 0.4) type = 'SPEED';
+                else if (r < 0.5) type = 'BOOM';
 
                 this.entities.push(new Zombie(x, y, 'wild', type));
             },
 
             spawnItem(x, y) {
-                // 掉落逻辑
                 const r = Math.random();
-                // 稀有道具: 灵魂水晶 (增加上限)
-                // 几率根据当前上限调整，上限越高越难出
-                const capChance = 0.05 * (1 - (this.currentCap / this.hardCap)); 
-                
-                if (r < capChance) {
-                    this.items.push(new Item(x, y, 'CAP'));
-                } else if (r < 0.3) {
-                    this.items.push(new Item(x, y, 'HEAL'));
-                }
+                // 掉落率调整
+                let capChance = 0.08 * (1 - (this.currentCap / this.hardCap)); 
+                if(this.difficulty === 'hard') capChance *= 1.5; // 困难模式掉落稍微高一点点，因为怪多
+
+                if (r < capChance) this.items.push(new Item(x, y, 'CAP'));
+                else if (r < 0.3) this.items.push(new Item(x, y, 'HEAL'));
             },
 
             toggleCommand() {
@@ -395,7 +403,7 @@
             handleTaming() {
                 if (!this.tameTarget || this.tameTarget.dead || this.tameTarget.team === 'minion') {
                     let closest = null;
-                    let minDist = 280;
+                    let minDist = 300;
                     this.entities.forEach(e => {
                         if (e.team === 'wild') {
                             const d = Math.hypot(e.x - this.player.x, e.y - this.player.y);
@@ -406,8 +414,11 @@
                 }
 
                 if (this.tameTarget) {
+                    // 音效反馈 (每10帧播放一次，避免过于刺耳)
+                    if (this.waveTimer % 10 === 0) AudioSys.playBeam();
+
                     const dist = Math.hypot(this.tameTarget.x - this.player.x, this.tameTarget.y - this.player.y);
-                    if (dist > 300) { this.tameTarget = null; return; }
+                    if (dist > 320) { this.tameTarget = null; return; }
 
                     let rate = 1.5;
                     if (this.tameTarget.type === 'TANK') rate = 0.8;
@@ -426,8 +437,8 @@
                 const currentMinions = this.entities.filter(e => e.team === 'minion').length;
                 if (currentMinions >= this.currentCap) {
                     showText(this.player.x, this.player.y - 30, "上限已满!", '#f00');
-                    target.takeDamage(999); // 直接捏死
-                    this.player.hp = Math.min(this.player.maxHp, this.player.hp + 10); // 回血
+                    target.takeDamage(999); 
+                    this.player.hp = Math.min(this.player.maxHp, this.player.hp + 15); 
                     this.updateUI();
                     return;
                 }
@@ -457,22 +468,16 @@
             }
         };
 
-        // --- 🎁 道具类 ---
+        // --- 🎁 道具 ---
         class Item {
             constructor(x, y, type) {
-                this.x = x; this.y = y; this.type = type; // 'CAP' or 'HEAL'
-                this.collected = false;
-                this.bobOffset = Math.random() * Math.PI;
+                this.x = x; this.y = y; this.type = type;
+                this.collected = false; this.bobOffset = Math.random() * Math.PI;
             }
             update() {
-                // 浮动动画
                 this.bobOffset += 0.1;
-                
-                // 捡取检测
                 const dist = Math.hypot(this.x - Game.player.x, this.y - Game.player.y);
-                if (dist < 30) {
-                    this.collect();
-                }
+                if (dist < 30) this.collect();
             }
             collect() {
                 this.collected = true;
@@ -485,7 +490,7 @@
                         Game.currentCap++;
                         showText(Game.player.x, Game.player.y - 50, "上限突破!", '#00d2d3');
                     } else {
-                        Game.score += 500; // 满级给分
+                        Game.score += 500;
                         showText(Game.player.x, Game.player.y - 50, "魔力溢出!", '#00d2d3');
                     }
                 }
@@ -493,21 +498,16 @@
             }
             draw() {
                 const y = this.y + Math.sin(this.bobOffset) * 5;
-                ctx.font = '20px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
+                ctx.font = '20px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                 if (this.type === 'CAP') {
                     ctx.fillText('💎', this.x, y);
-                    // 光圈
                     ctx.strokeStyle = 'rgba(0, 210, 211, 0.5)';
                     ctx.beginPath(); ctx.arc(this.x, y, 15, 0, Math.PI*2); ctx.stroke();
-                } else {
-                    ctx.fillText('🥩', this.x, y);
-                }
+                } else { ctx.fillText('🥩', this.x, y); }
             }
         }
 
-        // --- 🎭 实体类 ---
+        // --- 🎭 实体 ---
         class Entity {
             constructor(x, y, r, color) {
                 this.x = x; this.y = y; this.r = r; this.color = color;
@@ -522,19 +522,15 @@
         class Player extends Entity {
             constructor(x, y, maxHp) {
                 super(x, y, 15, '#b98eff');
-                this.speed = 4;
-                this.maxHp = maxHp;
-                this.hp = maxHp;
+                this.speed = 4; this.maxHp = maxHp; this.hp = maxHp;
             }
             update() {
                 if (joystick.active) {
-                    this.x += joystick.x * this.speed;
-                    this.y += joystick.y * this.speed;
+                    this.x += joystick.x * this.speed; this.y += joystick.y * this.speed;
                 }
             }
             takeDamage(amt) {
-                this.hp -= amt;
-                Game.updateUI();
+                this.hp -= amt; Game.updateUI();
                 createParticles(this.x, this.y, '#fff', 3);
                 if (this.hp <= 0) Game.gameOver();
             }
@@ -542,7 +538,7 @@
                 ctx.strokeStyle = 'rgba(185, 142, 255, 0.1)';
                 ctx.beginPath(); ctx.arc(this.x, this.y, 280, 0, Math.PI*2); ctx.stroke();
                 super.draw();
-                ctx.fillStyle = '#4a235a'; // 帽子
+                ctx.fillStyle = '#4a235a';
                 ctx.beginPath(); ctx.moveTo(this.x-10, this.y-10); ctx.lineTo(this.x, this.y-30); ctx.lineTo(this.x+10, this.y-10); ctx.fill();
             }
         }
@@ -550,17 +546,14 @@
         class Zombie extends Entity {
             constructor(x, y, team, type='NORMAL') {
                 super(x, y, 12, '#ff4757');
-                this.team = team; 
-                this.type = type;
-                this.tameProgress = 0;
-                this.cd = 0;
+                this.team = team; this.type = type;
+                this.tameProgress = 0; this.cd = 0;
                 
                 if (type === 'NORMAL') { this.hp = 30; this.speedBase = 2; this.dmg = 5; this.color = '#ff4757'; }
                 else if (type === 'TANK') { this.hp = 100; this.speedBase = 1.2; this.dmg = 10; this.r = 18; this.color = '#8e44ad'; }
                 else if (type === 'SPEED') { this.hp = 15; this.speedBase = 3.5; this.dmg = 3; this.r = 8; this.color = '#f1c40f'; }
                 else if (type === 'BOOM') { this.hp = 20; this.speedBase = 2.5; this.dmg = 50; this.color = '#e67e22'; }
-                this.maxHp = this.hp;
-                this.speed = this.speedBase;
+                this.maxHp = this.hp; this.speed = this.speedBase;
             }
 
             update() {
@@ -568,30 +561,49 @@
                 if(this.cd > 0) this.cd--;
 
                 let target = null;
-                let minDist = 300;
-
+                
+                // --- 核心 AI 优化: 优先攻击玩家 ---
                 if (this.team === 'wild') {
-                    // 优先打最近的（无论是玩家还是随从）
-                    let targets = [...Game.entities.filter(e => e.team === 'minion'), Game.player];
-                    targets.forEach(e => {
-                        const d = Math.hypot(e.x - this.x, e.y - this.y);
-                        if (d < minDist) { minDist = d; target = e; }
+                    // 1. 计算距离
+                    const distToPlayer = Math.hypot(Game.player.x - this.x, Game.player.y - this.y);
+                    
+                    // 默认目标是玩家
+                    target = Game.player;
+
+                    // 2. 检查是否有随从挡路 (距离极近)
+                    // 只有当随从非常近 (<80) 时，僵尸才会被迫攻击随从，否则它们会试图绕过
+                    let closestMinion = null;
+                    let minMinionDist = 80; 
+                    
+                    Game.entities.forEach(e => {
+                        if (e.team === 'minion') {
+                            const d = Math.hypot(e.x - this.x, e.y - this.y);
+                            if (d < minMinionDist) {
+                                minMinionDist = d;
+                                closestMinion = e;
+                            }
+                        }
                     });
+
+                    if (closestMinion) {
+                        target = closestMinion; // 被挡路了，只能先打随从
+                    }
+                    
                 } else {
-                    // 随从
+                    // 随从逻辑
                     if (Game.command === 'FOLLOW') {
                         const distPlayer = Math.hypot(Game.player.x - this.x, Game.player.y - this.y);
-                        if (distPlayer > 80) { target = Game.player; } // 紧跟
+                        if (distPlayer > 80) { target = Game.player; } 
                         else {
-                            // 护卫范围
-                            minDist = 150;
+                            // 护卫半径
+                            let minDist = 150;
                             Game.entities.filter(e => e.team === 'wild').forEach(e => {
                                 const d = Math.hypot(e.x - this.x, e.y - this.y);
                                 if (d < minDist) { minDist = d; target = e; }
                             });
                         }
                     } else {
-                        minDist = 600;
+                        let minDist = 600;
                         Game.entities.filter(e => e.team === 'wild').forEach(e => {
                             const d = Math.hypot(e.x - this.x, e.y - this.y);
                             if (d < minDist) { minDist = d; target = e; }
@@ -600,11 +612,10 @@
                 }
 
                 if (target) {
-                    const dx = target.x - this.x;
-                    const dy = target.y - this.y;
+                    const dx = target.x - this.x; const dy = target.y - this.y;
                     const d = Math.hypot(dx, dy);
                     
-                    // 简单的防重叠
+                    // 防重叠
                     Game.entities.forEach(e => {
                         if (e !== this && !e.dead) {
                             const dd = Math.hypot(e.x - this.x, e.y - this.y);
@@ -616,35 +627,29 @@
                     });
 
                     if (d > this.r + target.r + 2) {
-                        this.x += (dx/d) * this.speed;
-                        this.y += (dy/d) * this.speed;
+                        this.x += (dx/d) * this.speed; this.y += (dy/d) * this.speed;
                     } else {
                         if (this.type === 'BOOM' && ((this.team === 'wild' && target === Game.player) || (this.team === 'minion' && target.team === 'wild'))) {
                             this.explode();
                         } else if (this.cd <= 0 && target.takeDamage) {
-                            target.takeDamage(this.dmg);
-                            this.cd = 30;
+                            target.takeDamage(this.dmg); this.cd = 30;
                         }
                     }
                 }
             }
 
             takeDamage(amt) {
-                this.hp -= amt;
-                createParticles(this.x, this.y, this.color, 2);
+                this.hp -= amt; createParticles(this.x, this.y, this.color, 2);
                 if (this.hp <= 0) {
                     this.dead = true;
                     if (this.team === 'wild') {
-                        Game.score += 10;
-                        Game.spawnItem(this.x, this.y); // 掉落判定
-                        Game.updateUI();
+                        Game.score += 10; Game.spawnItem(this.x, this.y); Game.updateUI();
                     }
                 }
             }
 
             explode() {
-                this.dead = true;
-                createParticles(this.x, this.y, '#e67e22', 20);
+                this.dead = true; createParticles(this.x, this.y, '#e67e22', 20);
                 const range = 100;
                 [...Game.entities, Game.player].forEach(e => {
                     if (e.dead) return;
@@ -659,17 +664,13 @@
             draw() {
                 ctx.fillStyle = this.team === 'minion' ? '#0be881' : this.color;
                 ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2); ctx.fill();
-                // 血条
                 ctx.fillStyle = 'red'; ctx.fillRect(this.x-10, this.y-this.r-6, 20, 3);
                 ctx.fillStyle = '#0f0'; ctx.fillRect(this.x-10, this.y-this.r-6, 20 * (this.hp/this.maxHp), 3);
-                // 转化条
                 if (this.team === 'wild' && this.tameProgress > 0) {
                     ctx.fillStyle = '#b98eff'; ctx.fillRect(this.x-10, this.y-this.r-10, 20 * (this.tameProgress/100), 3);
                 }
-                // 图标
                 ctx.fillStyle = '#fff'; ctx.font = '10px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
-                let icon = '';
-                if(this.type==='TANK') icon='🛡️'; else if(this.type==='SPEED') icon='⚡'; else if(this.type==='BOOM') icon='💣';
+                let icon = ''; if(this.type==='TANK') icon='🛡️'; else if(this.type==='SPEED') icon='⚡'; else if(this.type==='BOOM') icon='💣';
                 if(icon) ctx.fillText(icon, this.x, this.y);
             }
         }
@@ -677,14 +678,13 @@
         class Particle {
             constructor(x, y, color) {
                 this.x = x; this.y = y; this.color = color;
-                this.vx = (Math.random()-0.5)*4; this.vy = (Math.random()-0.5)*4;
-                this.life = 20;
+                this.vx = (Math.random()-0.5)*4; this.vy = (Math.random()-0.5)*4; this.life = 20;
             }
             update() { this.x+=this.vx; this.y+=this.vy; this.life--; }
             draw() { ctx.fillStyle=this.color; ctx.globalAlpha=this.life/20; ctx.fillRect(this.x, this.y, 3, 3); ctx.globalAlpha=1; }
         }
 
-        // --- 🕹️ 交互 ---
+        // --- 交互 ---
         const tameBtn = document.getElementById('btn-tame');
         const startTame = (e) => { e.preventDefault(); Game.isTaming = true; tameBtn.classList.add('active'); };
         const endTame = (e) => { e.preventDefault(); Game.isTaming = false; tameBtn.classList.remove('active'); };
@@ -722,9 +722,7 @@
         function showText(x, y, txt, c) {
             const el = document.createElement('div'); el.className = 'floating-text';
             el.innerText = txt; el.style.color = c;
-            // 简单的屏幕坐标转换 (中心点偏移)
-            const sx = WIDTH/2 + (x - Game.player.x);
-            const sy = HEIGHT/2 + (y - Game.player.y);
+            const sx = WIDTH/2 + (x - Game.player.x); const sy = HEIGHT/2 + (y - Game.player.y);
             el.style.left = sx + 'px'; el.style.top = sy + 'px';
             document.body.appendChild(el);
             setTimeout(()=>el.remove(), 1000);
