@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>合成大西瓜</title>
+    <style>
+        :root {
+            --bg-color: #FFE8D6;
+            --wall-color: #CB997E;
+            --score-color: #6B705C;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: "Segoe UI", sans-serif;
+            touch-action: none; /* 禁止浏览器默认缩放滚动 */
+            user-select: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 450px; /* 限制最大宽度，模拟手机屏 */
+            height: 100%;
+            background: #FFF1E6;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* UI 层 */
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+        }
+
+        .header {
+            position: absolute;
+            top: 20px; left: 20px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--score-color);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .next-fruit {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: #A5A58D;
+        }
+
+        #game-over-modal {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto;
+            backdrop-filter: blur(5px);
+            z-index: 100;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        h2 { margin: 0 0 10px 0; color: #E76F51; }
+        p { font-size: 1.2rem; color: #555; margin-bottom: 20px; }
+
+        .btn {
+            background: #E76F51; color: white; border: none;
+            padding: 12px 30px; border-radius: 50px; font-size: 1rem;
+            cursor: pointer; font-weight: bold;
+            box-shadow: 0 4px 10px rgba(231, 111, 81, 0.3);
+        }
+        .btn:active { transform: scale(0.95); }
+
+        /* 警戒线 */
+        #danger-line {
+            position: absolute;
+            top: 150px; /* 距离顶部 */
+            left: 0; width: 100%; height: 2px;
+            border-top: 2px dashed #E76F51;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+        #danger-line::after {
+            content: '⚠️ 警戒线';
+            position: absolute; right: 10px; top: -20px;
+            color: #E76F51; font-size: 0.8rem;
+        }
+
+        @keyframes popIn { from {transform: scale(0.8); opacity: 0;} to {transform: scale(1); opacity: 1;} }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="danger-line"></div>
+
+        <div id="ui-layer">
+            <div class="header">
+                <div>得分: <span id="score-val">0</span></div>
+                <div class="next-fruit">下一个: <span id="next-fruit-icon">🍇</span></div>
+            </div>
+        </div>
+
+        <div id="game-over-modal">
+            <div class="modal-content">
+                <h2>💥 溢出了！</h2>
+                <p>最终得分: <span id="final-score">0</span></p>
+                <button class="btn" onclick="Game.reset()">再试一次</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 🔧 简易物理引擎与游戏配置 ---
+        const CONFIG = {
+            gravity: 0.5,       // 重力
+            friction: 0.98,     // 空气/地面摩擦
+            bounce: 0.4,        // 弹性 (越小越不容易乱弹)
+            spawnY: 50,         // 生成高度
+            dangerY: 150,       // 失败判定线
+            clickCooldown: 500  // 点击冷却(ms)
+        };
+
+        // 水果等级定义
+        // 半径会根据屏幕宽度自适应缩放
+        const FRUITS = [
+            { id: 0, icon: '🍇', color: '#9D4EDD', radius: 20, score: 2 },
+            { id: 1, icon: '🍒', color: '#D00000', radius: 30, score: 4 },
+            { id: 2, icon: '🍊', color: '#FFBA08', radius: 42, score: 8 },
+            { id: 3, icon: '🍋', color: '#FFEE32', radius: 50, score: 16 },
+            { id: 4, icon: '🥝', color: '#70E000', radius: 62, score: 32 },
+            { id: 5, icon: '🍅', color: '#FF6347', radius: 75, score: 64 },
+            { id: 6, icon: '🍑', color: '#FFADAD', radius: 88, score: 128 },
+            { id: 7, icon: '🍍', color: '#FFD60A', radius: 100, score: 256 },
+            { id: 8, icon: '🥥', color: '#CB997E', radius: 115, score: 512 },
+            { id: 9, icon: '🍉', color: '#52B788', radius: 135, score: 1024 },
+        ];
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let WIDTH, HEIGHT, SCALE;
+
+        // --- 🟢 物理球体类 ---
+        class Ball {
+            constructor(x, y, level) {
+                this.x = x;
+                this.y = y;
+                this.level = level;
+                this.vx = 0; // 速度X
+                this.vy = 0; // 速度Y
+                this.radius = FRUITS[level].radius * SCALE;
+                this.mass = this.radius; // 质量与半径成正比
+                this.dead = false;
+                this.growing = 0; // 刚生成时的膨胀动画 0 -> 1
+                this.mergeTimer = 0; // 防止连续合并的冷却
+            }
+
+            update() {
+                // 动画
+                if (this.growing < 1) this.growing += 0.1;
+
+                // 1. 重力
+                this.vy += CONFIG.gravity;
+
+                // 2. 应用速度
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // 3. 摩擦力 (简单的阻尼)
+                this.vx *= CONFIG.friction;
+                this.vy *= CONFIG.friction;
+
+                // 4. 墙壁碰撞
+                // 左
+                if (this.x < this.radius) {
+                    this.x = this.radius;
+                    this.vx *= -CONFIG.bounce;
+                }
+                // 右
+                if (this.x > WIDTH - this.radius) {
+                    this.x = WIDTH - this.radius;
+                    this.vx *= -CONFIG.bounce;
+                }
+                // 地面
+                if (this.y > HEIGHT - this.radius) {
+                    this.y = HEIGHT - this.radius;
+                    this.vy *= -CONFIG.bounce; // 弹性损耗
+                    // 如果速度很小，直接停止，防止抖动
+                    if (Math.abs(this.vy) < CONFIG.gravity * 2) this.vy = 0;
+                }
+            }
+
+            draw() {
+                const r = this.radius * (this.growing > 1 ? 1 : this.growing);
+                const fruit = FRUITS[this.level];
+                
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                // 旋转 (根据X速度简单模拟旋转)
+                // 这里的旋转是视觉上的，为了简化计算不存储实际角速度
+                const rotation = this.x * 0.05; 
+                ctx.rotate(rotation);
+
+                // 画圆背景
+                ctx.beginPath();
+                ctx.arc(0, 0, r, 0, Math.PI * 2);
+                ctx.fillStyle = fruit.color;
+                ctx.fill();
+                
+                // 画高光 (让球看起来立体)
+                ctx.beginPath();
+                ctx.arc(-r*0.3, -r*0.3, r*0.2, 0, Math.PI*2);
+                ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                ctx.fill();
+
+                // 画边框
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+                ctx.stroke();
+
+                // 画Emoji
+                ctx.font = `${r}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(fruit.icon, 0, 5 * SCALE); // 微调垂直位置
+
+                ctx.restore();
+            }
+        }
+
+        // --- 🎮 游戏主逻辑 ---
+        const Game = {
+            balls: [],
+            score: 0,
+            state: 'ready', // ready, playing, gameover
+            nextFruitLevel: 0,
+            activeBall: null, // 顶部跟随手指的球
+            lastClickTime: 0,
+            particles: [], // 爆炸特效粒子
+
+            init() {
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                
+                // 输入事件
+                const container = document.getElementById('game-container');
+                container.addEventListener('mousemove', e => this.handleMove(e.clientX));
+                container.addEventListener('touchmove', e => {
+                    e.preventDefault();
+                    this.handleMove(e.touches[0].clientX);
+                }, {passive: false});
+                
+                container.addEventListener('mouseup', () => this.handleClick());
+                container.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    this.handleClick();
+                });
+
+                this.reset();
+                this.loop();
+            },
+
+            resize() {
+                const container = document.getElementById('game-container');
+                WIDTH = container.clientWidth;
+                HEIGHT = container.clientHeight;
+                canvas.width = WIDTH;
+                canvas.height = HEIGHT;
+                // 基于宽度的缩放比例，以适配手机
+                SCALE = WIDTH / 450; 
+            },
+
+            reset() {
+                this.balls = [];
+                this.particles = [];
+                this.score = 0;
+                this.state = 'playing';
+                this.nextFruitLevel = 0;
+                document.getElementById('score-val').innerText = 0;
+                document.getElementById('game-over-modal').style.display = 'none';
+                document.getElementById('danger-line').style.opacity = 0;
+                this.spawnActiveBall();
+            },
+
+            spawnActiveBall() {
+                // 生成顶部待命的球
+                this.activeBall = {
+                    x: WIDTH / 2,
+                    y: CONFIG.spawnY,
+                    level: this.nextFruitLevel
+                };
+                // 随机下一个 (限制在前5个小的，防止直接生成大西瓜)
+                this.nextFruitLevel = Math.floor(Math.random() * 4); 
+                document.getElementById('next-fruit-icon').innerText = FRUITS[this.nextFruitLevel].icon;
+            },
+
+            handleMove(clientX) {
+                if (this.state !== 'playing' || !this.activeBall) return;
+                
+                // 计算相对于canvas的X坐标
+                const rect = canvas.getBoundingClientRect();
+                let x = clientX - rect.left;
+                
+                // 限制边界，不让球的一半出屏幕
+                const r = FRUITS[this.activeBall.level].radius * SCALE;
+                if (x < r) x = r;
+                if (x > WIDTH - r) x = WIDTH - r;
+
+                this.activeBall.x = x;
+            },
+
+            handleClick() {
+                const now = Date.now();
+                if (this.state !== 'playing' || !this.activeBall || now - this.lastClickTime < CONFIG.clickCooldown) return;
+
+                this.lastClickTime = now;
+
+                // 1. 将activeBall变成实体球
+                const ball = new Ball(this.activeBall.x, this.activeBall.y, this.activeBall.level);
+                this.balls.push(ball);
+                this.activeBall = null;
+
+                // 2. 延迟生成下一个，防止连点
+                setTimeout(() => {
+                    if (this.state === 'playing') this.spawnActiveBall();
+                }, 500);
+            },
+
+            checkCollisions() {
+                for (let i = 0; i < this.balls.length; i++) {
+                    for (let j = i + 1; j < this.balls.length; j++) {
+                        const b1 = this.balls[i];
+                        const b2 = this.balls[j];
+                        if (b1.dead || b2.dead) continue;
+
+                        const dx = b2.x - b1.x;
+                        const dy = b2.y - b1.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        const minDist = b1.radius + b2.radius;
+
+                        if (dist < minDist) {
+                            // --- 碰撞处理 ---
+                            
+                            // 1. 求解重叠，推开两个球 (位置修正)
+                            const angle = Math.atan2(dy, dx);
+                            const tx = Math.cos(angle);
+                            const ty = Math.sin(angle);
+                            const overlap = minDist - dist;
+                            
+                            // 质量大的推开质量小的 (简化版：按比例推)
+                            const totalMass = b1.mass + b2.mass;
+                            const m1 = b2.mass / totalMass;
+                            const m2 = b1.mass / totalMass;
+
+                            b1.x -= tx * overlap * m1;
+                            b1.y -= ty * overlap * m1;
+                            b2.x += tx * overlap * m2;
+                            b2.y += ty * overlap * m2;
+
+                            // 2. 速度交换 (动量守恒的简化模拟)
+                            // 将速度投影到碰撞法线上
+                            const v1 = Math.sqrt(b1.vx*b1.vx + b1.vy*b1.vy);
+                            const v2 = Math.sqrt(b2.vx*b2.vx + b2.vy*b2.vy);
+                            // 简单的能量损失碰撞
+                            const force = (v1 + v2) * 0.05; // 挤压弹力
+                            b1.vx -= tx * force;
+                            b1.vy -= ty * force;
+                            b2.vx += tx * force;
+                            b2.vy += ty * force;
+
+                            // 3. 合成判断
+                            if (b1.level === b2.level && b1.level < FRUITS.length - 1) {
+                                // 只有当两个球相对速度不大时才合成，或者为了简单，只要碰了就合成
+                                // 为了游戏性，直接合成
+                                this.mergeBalls(b1, b2);
+                            }
+                        }
+                    }
+                }
+            },
+
+            mergeBalls(b1, b2) {
+                b1.dead = true;
+                b2.dead = true;
+
+                const nextLevel = b1.level + 1;
+                const midX = (b1.x + b2.x) / 2;
+                const midY = (b1.y + b2.y) / 2;
+
+                // 创建新球
+                const newBall = new Ball(midX, midY, nextLevel);
+                // 给新球一个小小的向上速度，模拟弹起
+                newBall.vy = -2; 
+                this.balls.push(newBall);
+
+                // 加分
+                const score = FRUITS[b1.level].score;
+                this.score += score;
+                document.getElementById('score-val').innerText = this.score;
+
+                // 特效
+                this.createParticles(midX, midY, FRUITS[b1.level].color);
+                
+                // 震动反馈
+                if(navigator.vibrate) navigator.vibrate(30);
+            },
+
+            createParticles(x, y, color) {
+                for(let i=0; i<10; i++) {
+                    this.particles.push({
+                        x: x, y: y,
+                        vx: (Math.random() - 0.5) * 10,
+                        vy: (Math.random() - 0.5) * 10,
+                        life: 1.0,
+                        color: color
+                    });
+                }
+            },
+
+            checkGameOver() {
+                // 检查是否有球长时间停留在警戒线以上
+                let danger = false;
+                for(let b of this.balls) {
+                    if (!b.dead && b.y - b.radius < CONFIG.dangerY && b.vy < 0.1 && b.growing >= 1) {
+                        danger = true;
+                        // 如果超过一定高度，直接结束（这里简化为碰到线就算危险，如果持续太久就挂）
+                        // 实际简化：只要静止的球触碰到 Danger Line 超过几帧就死，这里用高度判定
+                        if (b.y - b.radius < CONFIG.spawnY + 50) {
+                            this.gameOver();
+                            return;
+                        }
+                    }
+                }
+                
+                const line = document.getElementById('danger-line');
+                line.style.opacity = danger ? 1 : 0;
+            },
+
+            gameOver() {
+                this.state = 'gameover';
+                document.getElementById('final-score').innerText = this.score;
+                document.getElementById('game-over-modal').style.display = 'flex';
+            },
+
+            loop() {
+                ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+                if (this.state === 'playing') {
+                    // 1. 更新球物理
+                    for(let b of this.balls) b.update();
+                    
+                    // 2. 碰撞解决 (迭代多次以增加稳定性)
+                    for(let k=0; k<8; k++) this.checkCollisions();
+
+                    // 3. 判定失败
+                    this.checkGameOver();
+                }
+
+                // 4. 绘制
+                // 绘制待命球 (半透明)
+                if (this.activeBall) {
+                    const r = FRUITS[this.activeBall.level].radius * SCALE;
+                    ctx.save();
+                    ctx.globalAlpha = 0.6;
+                    ctx.translate(this.activeBall.x, this.activeBall.y);
+                    ctx.beginPath();
+                    ctx.arc(0, 0, r, 0, Math.PI * 2);
+                    ctx.fillStyle = FRUITS[this.activeBall.level].color;
+                    ctx.fill();
+                    ctx.font = `${r}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(FRUITS[this.activeBall.level].icon, 0, 5*SCALE);
+                    
+                    // 绘制瞄准线
+                    ctx.globalAlpha = 0.3;
+                    ctx.strokeStyle = '#888';
+                    ctx.setLineDash([5, 5]);
+                    ctx.beginPath();
+                    ctx.moveTo(0, r);
+                    ctx.lineTo(0, HEIGHT);
+                    ctx.stroke();
+                    
+                    ctx.restore();
+                }
+
+                // 绘制实体球
+                for (let b of this.balls) {
+                    if(!b.dead) b.draw();
+                }
+                this.balls = this.balls.filter(b => !b.dead);
+
+                // 绘制粒子
+                for (let p of this.particles) {
+                    p.x += p.vx; p.y += p.vy;
+                    p.life -= 0.05;
+                    ctx.globalAlpha = p.life;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
+                    ctx.fill();
+                }
+                this.particles = this.particles.filter(p => p.life > 0);
+                ctx.globalAlpha = 1;
+
+                requestAnimationFrame(() => this.loop());
+            }
+        };
+
+        // 启动
+        Game.init();
+
+    </script>
+</body>
+</html>

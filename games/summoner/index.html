@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>亡灵主宰：召唤师</title>
+    <style>
+        :root {
+            --bg: #200f21; /* 深紫黑背景 */
+            --accent: #b98eff; /* 魔法紫 */
+            --ui-bg: rgba(0, 0, 0, 0.6);
+            --enemy: #ff4757;
+            --minion: #0be881;
+        }
+
+        body {
+            margin: 0; overflow: hidden; background: var(--bg);
+            font-family: 'Segoe UI', sans-serif; touch-action: none; user-select: none;
+            color: white;
+        }
+
+        canvas { display: block; }
+
+        /* UI层 */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column;
+        }
+
+        /* 顶部信息 */
+        .hud {
+            padding: 15px; display: flex; justify-content: space-between;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+        }
+        .stat-box {
+            background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px;
+            border: 1px solid #555; font-weight: bold; display: flex; align-items: center; gap: 5px;
+        }
+
+        /* 底部操作区 */
+        .controls {
+            margin-top: auto; padding: 20px; display: flex; justify-content: space-between;
+            align-items: flex-end; pointer-events: auto;
+        }
+
+        /* 摇杆区域 */
+        #joystick-zone {
+            width: 150px; height: 150px; position: relative;
+        }
+        #stick-bg {
+            position: absolute; width: 100px; height: 100px; border-radius: 50%;
+            background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.2);
+            top: 25px; left: 25px;
+        }
+        #stick {
+            position: absolute; width: 40px; height: 40px; border-radius: 50%;
+            background: var(--accent); top: 55px; left: 55px;
+            box-shadow: 0 0 10px var(--accent);
+        }
+
+        /* 技能按钮组 */
+        .btn-group {
+            display: flex; gap: 15px; margin-bottom: 20px;
+        }
+        .action-btn {
+            width: 70px; height: 70px; border-radius: 50%; border: none;
+            background: rgba(255,255,255,0.1); color: white; font-size: 1.5rem;
+            backdrop-filter: blur(5px); border: 2px solid #fff;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: transform 0.1s; position: relative;
+        }
+        .action-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.3); }
+        
+        /* 转化按钮特殊样式 */
+        #btn-tame { border-color: var(--accent); color: var(--accent); }
+        #btn-tame.active { background: var(--accent); color: #fff; box-shadow: 0 0 20px var(--accent); }
+
+        /* 指令切换按钮 */
+        #btn-cmd { border-color: var(--minion); color: var(--minion); }
+        
+        .btn-label { font-size: 0.7rem; margin-top: -5px; font-weight: bold; }
+
+        /* 游戏结束弹窗 */
+        #modal {
+            position: absolute; top:0; left:0; width:100%; height:100%;
+            background: rgba(0,0,0,0.9); display: none;
+            flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; pointer-events: auto;
+        }
+        .modal-content { text-align: center; animation: pop 0.3s; }
+        h1 { color: var(--accent); margin-bottom: 10px; font-size: 2rem; }
+        .btn-restart {
+            background: var(--accent); border: none; padding: 15px 40px;
+            color: white; font-size: 1.2rem; border-radius: 30px; margin-top: 20px;
+        }
+
+        @keyframes pop { from{transform:scale(0.8);opacity:0} to{transform:scale(1);opacity:1} }
+        
+        /* 飘字 */
+        .floating-text {
+            position: absolute; font-weight: bold; pointer-events: none;
+            text-shadow: 1px 1px 0 #000; animation: floatUp 1s forwards;
+        }
+        @keyframes floatUp { to { transform: translateY(-30px); opacity: 0; } }
+
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div class="hud">
+            <div class="stat-box">❤️ <span id="hp-val">100</span></div>
+            <div class="stat-box">🧟 <span id="army-val">0/8</span></div>
+            <div class="stat-box">💀 <span id="score-val">0</span></div>
+        </div>
+
+        <div class="controls">
+            <div id="joystick-zone">
+                <div id="stick-bg"></div>
+                <div id="stick"></div>
+            </div>
+
+            <div class="btn-group">
+                <button class="action-btn" id="btn-cmd" onclick="Game.toggleCommand()">
+                    <span id="cmd-icon">🛡️</span>
+                    <span class="btn-label" id="cmd-text">跟随</span>
+                </button>
+                
+                <button class="action-btn" id="btn-tame">
+                    ✨
+                    <span class="btn-label">转化</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal">
+        <div class="modal-content">
+            <h1>⚰️ 你倒下了</h1>
+            <p>但亡灵军团会记住你的名字</p>
+            <p>得分: <span id="end-score">0</span></p>
+            <button class="btn-restart" onclick="Game.start()">再次重生</button>
+        </div>
+    </div>
+
+    <script>
+        // --- 🔊 音效系统 ---
+        const AudioSys = {
+            ctx: new (window.AudioContext || window.webkitAudioContext)(),
+            playTone(freq, type, duration, vol=0.1) {
+                if(this.ctx.state === 'suspended') this.ctx.resume();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            },
+            playBeam() {
+                // 持续的嗡嗡声
+                this.playTone(100 + Math.random()*20, 'sawtooth', 0.1, 0.05);
+            },
+            playTame() {
+                // 成功转化 (魔法音效)
+                this.playTone(600, 'sine', 0.1);
+                setTimeout(() => this.playTone(900, 'sine', 0.2), 100);
+            },
+            playExplode() {
+                this.playTone(100, 'square', 0.3, 0.2);
+            }
+        };
+
+        // --- 🛠️ 游戏引擎 ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let WIDTH, HEIGHT;
+
+        const Game = {
+            state: 'menu',
+            player: null,
+            entities: [], // 所有生物 (玩家除外)
+            particles: [],
+            score: 0,
+            camX: 0, camY: 0,
+            
+            command: 'FOLLOW', // FOLLOW or ATTACK
+            isTaming: false,
+            tameTarget: null,
+            
+            maxMinions: 8,
+            waveTimer: 0,
+            difficulty: 1,
+
+            start() {
+                this.resize();
+                this.state = 'playing';
+                document.getElementById('modal').style.display = 'none';
+                
+                this.player = new Player(0, 0);
+                this.entities = [];
+                this.particles = [];
+                this.score = 0;
+                this.difficulty = 1;
+                this.command = 'FOLLOW';
+                this.updateUI();
+                this.loop();
+            },
+
+            resize() {
+                WIDTH = window.innerWidth;
+                HEIGHT = window.innerHeight;
+                canvas.width = WIDTH;
+                canvas.height = HEIGHT;
+            },
+
+            loop() {
+                if(this.state !== 'playing') return;
+
+                // 1. 生成敌人
+                this.waveTimer++;
+                if (this.waveTimer > 600) { this.difficulty++; this.waveTimer = 0; } // 每10秒增加难度
+                
+                const targetCount = 5 + this.difficulty * 2;
+                const enemies = this.entities.filter(e => e.team === 'wild').length;
+                
+                if (enemies < targetCount && Math.random() < 0.02) {
+                    this.spawnEnemy();
+                }
+
+                // 2. 更新逻辑
+                this.player.update();
+                
+                // 相机跟随
+                this.camX += (this.player.x - WIDTH/2 - this.camX) * 0.1;
+                this.camY += (this.player.y - HEIGHT/2 - this.camY) * 0.1;
+
+                // 更新所有实体
+                this.entities.forEach(e => e.update());
+                this.particles.forEach(p => p.update());
+
+                // 排序 (Y轴遮挡)
+                this.entities.sort((a, b) => a.y - b.y);
+
+                // 3. 清理
+                this.entities = this.entities.filter(e => !e.dead);
+                this.particles = this.particles.filter(p => p.life > 0);
+
+                // 4. 绘制
+                this.draw();
+
+                // 5. 转化逻辑
+                if (this.isTaming) {
+                    this.handleTaming();
+                } else {
+                    this.tameTarget = null;
+                }
+
+                requestAnimationFrame(() => this.loop());
+            },
+
+            draw() {
+                // 背景
+                ctx.fillStyle = '#200f21';
+                ctx.fillRect(0, 0, WIDTH, HEIGHT);
+                
+                // 网格
+                ctx.save();
+                ctx.translate(-this.camX, -this.camY);
+                
+                ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+                const gridSize = 100;
+                const startX = Math.floor(this.camX/gridSize)*gridSize;
+                const startY = Math.floor(this.camY/gridSize)*gridSize;
+                
+                for(let x = startX; x < startX + WIDTH + gridSize; x+=gridSize) {
+                    ctx.beginPath(); ctx.moveTo(x, startY); ctx.lineTo(x, startY+HEIGHT+gridSize); ctx.stroke();
+                }
+                for(let y = startY; y < startY + HEIGHT + gridSize; y+=gridSize) {
+                    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(startX+WIDTH+gridSize, y); ctx.stroke();
+                }
+
+                // 绘制转化光束
+                if (this.isTaming && this.tameTarget && !this.tameTarget.dead) {
+                    ctx.beginPath();
+                    ctx.moveTo(this.player.x, this.player.y);
+                    ctx.lineTo(this.tameTarget.x, this.tameTarget.y);
+                    ctx.strokeStyle = '#b98eff';
+                    ctx.lineWidth = 4 + Math.random() * 4;
+                    ctx.stroke();
+                    
+                    // 粒子效果
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath();
+                    ctx.arc(this.tameTarget.x + (Math.random()-0.5)*20, this.tameTarget.y + (Math.random()-0.5)*20, 3, 0, Math.PI*2);
+                    ctx.fill();
+                }
+
+                this.entities.forEach(e => e.draw());
+                this.player.draw();
+                this.particles.forEach(p => p.draw());
+
+                ctx.restore();
+            },
+
+            spawnEnemy() {
+                // 在玩家视野外生成
+                const angle = Math.random() * Math.PI * 2;
+                const dist = Math.max(WIDTH, HEIGHT) * 0.7 + Math.random() * 200;
+                const x = this.player.x + Math.cos(angle) * dist;
+                const y = this.player.y + Math.sin(angle) * dist;
+                
+                // 随机种类
+                const r = Math.random();
+                let type = 'NORMAL';
+                if (r < 0.15) type = 'TANK'; // 15% 坦克
+                else if (r < 0.3) type = 'SPEED'; // 15% 速攻
+                else if (r < 0.4) type = 'BOOM'; // 10% 自爆
+
+                this.entities.push(new Zombie(x, y, 'wild', type));
+            },
+
+            toggleCommand() {
+                this.command = this.command === 'FOLLOW' ? 'ATTACK' : 'FOLLOW';
+                const btn = document.getElementById('btn-cmd');
+                const icon = document.getElementById('cmd-icon');
+                const text = document.getElementById('cmd-text');
+                
+                if (this.command === 'ATTACK') {
+                    icon.innerText = '⚔️';
+                    text.innerText = '自由猎杀';
+                    btn.style.borderColor = '#ff4757';
+                    btn.style.color = '#ff4757';
+                } else {
+                    icon.innerText = '🛡️';
+                    text.innerText = '护卫主人';
+                    btn.style.borderColor = '#0be881';
+                    btn.style.color = '#0be881';
+                }
+            },
+
+            handleTaming() {
+                // 寻找鼠标方向最近的野生僵尸，或者距离最近的
+                if (!this.tameTarget || this.tameTarget.dead || this.tameTarget.team === 'minion') {
+                    // 重新索敌
+                    let closest = null;
+                    let minDist = 250; // 施法距离
+                    this.entities.forEach(e => {
+                        if (e.team === 'wild') {
+                            const d = Math.hypot(e.x - this.player.x, e.y - this.player.y);
+                            if (d < minDist) { minDist = d; closest = e; }
+                        }
+                    });
+                    this.tameTarget = closest;
+                }
+
+                if (this.tameTarget) {
+                    // 检查距离
+                    const dist = Math.hypot(this.tameTarget.x - this.player.x, this.tameTarget.y - this.player.y);
+                    if (dist > 280) {
+                        this.tameTarget = null; // 断开连接
+                        return;
+                    }
+
+                    // 增加驯服度
+                    AudioSys.playBeam();
+                    // 转化速度
+                    let rate = 1.5;
+                    if (this.tameTarget.type === 'TANK') rate = 0.8; // 坦克难抓
+                    
+                    this.tameTarget.tameProgress += rate;
+                    this.tameTarget.speed *= 0.2; // 被抓时减速
+
+                    if (this.tameTarget.tameProgress >= 100) {
+                        this.convertZombie(this.tameTarget);
+                        this.tameTarget = null;
+                    }
+                }
+            },
+
+            convertZombie(target) {
+                const currentMinions = this.entities.filter(e => e.team === 'minion').length;
+                if (currentMinions >= this.maxMinions) {
+                    showText(this.player.x, this.player.y, "军队已满!", '#f00');
+                    // 军队满了转化会直接杀死并回血
+                    target.takeDamage(999);
+                    this.player.hp = Math.min(100, this.player.hp + 10);
+                    this.updateUI();
+                    return;
+                }
+
+                target.team = 'minion';
+                target.hp = target.maxHp; // 满血复活
+                target.tameProgress = 0;
+                AudioSys.playTame();
+                createParticles(target.x, target.y, '#0be881', 15);
+                showText(target.x, target.y, "捕获成功!", '#0be881');
+                this.updateUI();
+            },
+
+            updateUI() {
+                document.getElementById('hp-val').innerText = Math.floor(this.player.hp);
+                const count = this.entities.filter(e => e.team === 'minion').length;
+                document.getElementById('army-val').innerText = `${count}/${this.maxMinions}`;
+                document.getElementById('score-val').innerText = this.score;
+            },
+
+            gameOver() {
+                this.state = 'over';
+                document.getElementById('end-score').innerText = this.score;
+                document.getElementById('modal').style.display = 'flex';
+            }
+        };
+
+        // --- 🎭 实体类 ---
+        class Entity {
+            constructor(x, y, r, color) {
+                this.x = x; this.y = y; this.r = r; this.color = color;
+                this.dead = false;
+            }
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2); ctx.fill();
+            }
+        }
+
+        class Player extends Entity {
+            constructor(x, y) {
+                super(x, y, 15, '#b98eff');
+                this.speed = 4;
+                this.hp = 100;
+            }
+            update() {
+                if (joystick.active) {
+                    this.x += joystick.x * this.speed;
+                    this.y += joystick.y * this.speed;
+                }
+                // 被施法减速
+                if (Game.isTaming && Game.tameTarget) {
+                    // 如果正在吸取，移动稍微慢一点
+                    // this.x -= joystick.x * this.speed * 0.5; 
+                    // this.y -= joystick.y * this.speed * 0.5;
+                }
+            }
+            takeDamage(amt) {
+                this.hp -= amt;
+                Game.updateUI();
+                createParticles(this.x, this.y, '#fff', 3);
+                if (this.hp <= 0) Game.gameOver();
+            }
+            draw() {
+                // 光环
+                ctx.strokeStyle = 'rgba(185, 142, 255, 0.2)';
+                ctx.beginPath(); ctx.arc(this.x, this.y, 250, 0, Math.PI*2); ctx.stroke();
+                super.draw();
+                // 巫师帽效果
+                ctx.fillStyle = '#4a235a';
+                ctx.beginPath(); ctx.moveTo(this.x-10, this.y-10); ctx.lineTo(this.x, this.y-30); ctx.lineTo(this.x+10, this.y-10); ctx.fill();
+            }
+        }
+
+        class Zombie extends Entity {
+            constructor(x, y, team, type='NORMAL') {
+                super(x, y, 12, '#ff4757');
+                this.team = team; // 'wild' or 'minion'
+                this.type = type;
+                this.tameProgress = 0;
+                this.cd = 0;
+                
+                // 属性初始化
+                if (type === 'NORMAL') {
+                    this.hp = 30; this.speedBase = 2; this.dmg = 5; this.color = '#ff4757';
+                } else if (type === 'TANK') {
+                    this.hp = 100; this.speedBase = 1.2; this.dmg = 10; this.r = 18; this.color = '#8e44ad';
+                } else if (type === 'SPEED') {
+                    this.hp = 15; this.speedBase = 3.5; this.dmg = 3; this.r = 8; this.color = '#f1c40f';
+                } else if (type === 'BOOM') {
+                    this.hp = 20; this.speedBase = 2.5; this.dmg = 50; this.color = '#e67e22';
+                }
+                this.maxHp = this.hp;
+                this.speed = this.speedBase;
+            }
+
+            update() {
+                this.speed = this.speedBase; // 重置速度
+                if(this.cd > 0) this.cd--;
+
+                // 索敌逻辑
+                let target = null;
+                let minDist = 300; // 感知范围
+
+                if (this.team === 'wild') {
+                    // 野生僵尸：攻击玩家或随从
+                    // 优先攻击最近的随从，其次玩家
+                    let enemies = Game.entities.filter(e => e.team === 'minion');
+                    enemies.push(Game.player);
+                    
+                    enemies.forEach(e => {
+                        const d = Math.hypot(e.x - this.x, e.y - this.y);
+                        if (d < minDist) { minDist = d; target = e; }
+                    });
+                } else {
+                    // 随从逻辑
+                    if (Game.command === 'FOLLOW') {
+                        const distToPlayer = Math.hypot(Game.player.x - this.x, Game.player.y - this.y);
+                        if (distToPlayer > 100) {
+                            target = Game.player; // 回到玩家身边
+                        } else {
+                            // 护卫模式：只打非常近的怪
+                            minDist = 100;
+                            Game.entities.filter(e => e.team === 'wild').forEach(e => {
+                                const d = Math.hypot(e.x - this.x, e.y - this.y);
+                                if (d < minDist) { minDist = d; target = e; }
+                            });
+                        }
+                    } else {
+                        // 自由猎杀
+                        minDist = 500; // 全图找怪
+                        Game.entities.filter(e => e.team === 'wild').forEach(e => {
+                            const d = Math.hypot(e.x - this.x, e.y - this.y);
+                            if (d < minDist) { minDist = d; target = e; }
+                        });
+                    }
+                }
+
+                // 移动和攻击
+                if (target) {
+                    const dx = target.x - this.x;
+                    const dy = target.y - this.y;
+                    const d = Math.hypot(dx, dy);
+                    
+                    // 简单的避让 (Boids Separation) - 避免重叠
+                    let pushX = 0, pushY = 0;
+                    Game.entities.forEach(e => {
+                        if (e !== this) {
+                            const dd = Math.hypot(e.x - this.x, e.y - this.y);
+                            if (dd < this.r + e.r) {
+                                pushX -= (e.x - this.x);
+                                pushY -= (e.y - this.y);
+                            }
+                        }
+                    });
+                    this.x += pushX * 0.1;
+                    this.y += pushY * 0.1;
+
+                    if (d > this.r + target.r + 2) {
+                        this.x += (dx/d) * this.speed;
+                        this.y += (dy/d) * this.speed;
+                    } else {
+                        // 接触
+                        if (this.type === 'BOOM' && this.team === 'wild' && target === Game.player) {
+                            // 野生自爆怪炸玩家
+                            this.explode();
+                        } else if (this.type === 'BOOM' && this.team === 'minion' && target.team === 'wild') {
+                            // 己方自爆怪炸敌人
+                            this.explode();
+                        } else if (this.cd <= 0 && target.takeDamage) {
+                            // 普通攻击
+                            target.takeDamage(this.dmg);
+                            this.cd = 30; // 0.5秒攻击一次
+                        }
+                    }
+                }
+            }
+
+            takeDamage(amt) {
+                this.hp -= amt;
+                createParticles(this.x, this.y, this.color, 2);
+                if (this.hp <= 0) {
+                    this.dead = true;
+                    if (this.team === 'wild') {
+                        Game.score += 10;
+                        Game.updateUI();
+                    }
+                }
+            }
+
+            explode() {
+                this.dead = true;
+                createParticles(this.x, this.y, '#e67e22', 30);
+                AudioSys.playExplode();
+                // 范围伤害
+                const range = 80;
+                [...Game.entities, Game.player].forEach(e => {
+                    if (e.dead) return;
+                    const d = Math.hypot(e.x - this.x, e.y - this.y);
+                    if (d < range) {
+                        // 炸队友伤害低，炸敌人伤害高
+                        if (e.team !== this.team) e.takeDamage(this.dmg);
+                        else e.takeDamage(this.dmg * 0.2);
+                    }
+                });
+            }
+
+            draw() {
+                // 颜色随阵营变化
+                const baseColor = this.color;
+                ctx.fillStyle = this.team === 'minion' ? '#0be881' : baseColor;
+                
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2); ctx.fill();
+                
+                // 血条
+                ctx.fillStyle = 'red';
+                ctx.fillRect(this.x-10, this.y-this.r-8, 20, 4);
+                ctx.fillStyle = '#0f0';
+                ctx.fillRect(this.x-10, this.y-this.r-8, 20 * (this.hp/this.maxHp), 4);
+
+                // 驯服进度条 (仅野生显示)
+                if (this.team === 'wild' && this.tameProgress > 0) {
+                    ctx.fillStyle = '#b98eff';
+                    ctx.fillRect(this.x-12, this.y-this.r-14, 24, 4);
+                    ctx.fillRect(this.x-12, this.y-this.r-14, 24 * (this.tameProgress/100), 4);
+                }
+
+                // 标识
+                ctx.fillStyle = '#fff';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                let icon = '';
+                if(this.type === 'TANK') icon = '🛡️';
+                if(this.type === 'SPEED') icon = '⚡';
+                if(this.type === 'BOOM') icon = '💣';
+                if(icon) ctx.fillText(icon, this.x, this.y);
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y; this.color = color;
+                this.vx = (Math.random()-0.5)*5;
+                this.vy = (Math.random()-0.5)*5;
+                this.life = 20 + Math.random()*10;
+            }
+            update() { this.x+=this.vx; this.y+=this.vy; this.life--; }
+            draw() {
+                ctx.fillStyle = this.color; ctx.globalAlpha = this.life/30;
+                ctx.fillRect(this.x, this.y, 3, 3); ctx.globalAlpha = 1;
+            }
+        }
+
+        // --- 🕹️ 控制逻辑 ---
+        const tameBtn = document.getElementById('btn-tame');
+        tameBtn.addEventListener('touchstart', (e) => { e.preventDefault(); Game.isTaming = true; tameBtn.classList.add('active'); });
+        tameBtn.addEventListener('touchend', (e) => { e.preventDefault(); Game.isTaming = false; tameBtn.classList.remove('active'); });
+        
+        // 鼠标支持
+        tameBtn.addEventListener('mousedown', () => { Game.isTaming = true; tameBtn.classList.add('active'); });
+        tameBtn.addEventListener('mouseup', () => { Game.isTaming = false; tameBtn.classList.remove('active'); });
+
+        // 摇杆
+        const stick = document.getElementById('stick');
+        const zone = document.getElementById('joystick-zone');
+        const joystick = { x: 0, y: 0, active: false, originX: 0, originY: 0 };
+
+        zone.addEventListener('touchstart', e => {
+            e.preventDefault();
+            const t = e.touches[0];
+            joystick.active = true;
+            const rect = zone.getBoundingClientRect();
+            joystick.originX = rect.left + rect.width/2;
+            joystick.originY = rect.top + rect.height/2;
+            updateStick(t.clientX, t.clientY);
+        }, {passive: false});
+
+        zone.addEventListener('touchmove', e => {
+            e.preventDefault();
+            if(joystick.active) updateStick(e.touches[0].clientX, e.touches[0].clientY);
+        }, {passive: false});
+
+        const endStick = () => { joystick.active = false; joystick.x=0; joystick.y=0; stick.style.top='55px'; stick.style.left='55px'; };
+        zone.addEventListener('touchend', endStick);
+
+        function updateStick(cx, cy) {
+            const maxDist = 50;
+            let dx = cx - joystick.originX;
+            let dy = cy - joystick.originY;
+            const dist = Math.hypot(dx, dy);
+            if(dist > maxDist) { dx *= maxDist/dist; dy *= maxDist/dist; }
+            stick.style.left = (55 + dx) + 'px';
+            stick.style.top = (55 + dy) + 'px';
+            joystick.x = dx/maxDist; joystick.y = dy/maxDist;
+        }
+
+        // 辅助函数
+        function createParticles(x, y, color, count) {
+            for(let i=0; i<count; i++) Game.particles.push(new Particle(x, y, color));
+        }
+        function showText(x, y, text, color) {
+            const el = document.createElement('div');
+            el.className = 'floating-text';
+            el.innerText = text;
+            el.style.color = color;
+            el.style.left = (x - Game.camX) + 'px'; // 这里的坐标转换不精确，因为是DOM层，简单处理
+            // 实际上DOM位置需要每一帧更新，这里为性能简化，暂不动态更新DOM位置
+            // 改用Canvas绘制飘字更佳，但为了代码结构简单，这里仅在生成位置显示一下
+            // 修正：DOM层需要 fixed 坐标转换，比较麻烦。
+            // 建议：这里用 Canvas 绘制文字
+            // Hack: 既然已经写了 DOM，就用 DOM 居中显示一下即可，或者改成 Canvas Text
+        }
+        // 重写 showText 为 Canvas 绘制，避免 DOM 坐标问题
+        Game.showTextQueue = [];
+        // (在 loop draw 中处理)
+
+        // 启动
+        window.addEventListener('resize', () => Game.resize());
+        Game.start();
+
+    </script>
+</body>
+</html>
