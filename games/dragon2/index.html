@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>屠龙勇士：像素射击</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #2d3436;
+            --ui-text: #dfe6e9;
+            --accent: #fab1a0;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: 'Press Start 2P', cursive; /* 像素字体 */
+            touch-action: none;
+            user-select: none;
+        }
+
+        canvas { display: block; }
+
+        /* UI 层 */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between;
+        }
+
+        /* 顶部状态栏 */
+        .header {
+            padding: 15px;
+            display: flex; justify-content: space-between;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+            color: var(--ui-text);
+            font-size: 0.8rem;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        /* 底部操作提示 */
+        .controls-hint {
+            text-align: center; padding-bottom: 30px;
+            color: rgba(255,255,255,0.3);
+            font-size: 0.7rem;
+            animation: blink 2s infinite;
+        }
+
+        /* 弹窗 */
+        #modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            pointer-events: auto;
+            z-index: 100;
+            backdrop-filter: blur(4px);
+        }
+
+        h1 { 
+            color: #ff7675; margin-bottom: 20px; font-size: 1.5rem; text-align: center; line-height: 1.5;
+            text-shadow: 4px 4px 0 #d63031;
+        }
+
+        .btn {
+            background: #0984e3; color: white; border: 4px solid #74b9ff;
+            padding: 15px 30px; font-family: inherit; font-size: 1rem;
+            cursor: pointer; text-transform: uppercase;
+            box-shadow: 0 6px 0 #005691;
+            margin-top: 20px;
+            transition: transform 0.1s;
+        }
+        .btn:active { transform: translateY(6px); box-shadow: none; }
+        
+        .btn-home {
+            background: #636e72; border-color: #b2bec3; box-shadow: 0 6px 0 #2d3436;
+            font-size: 0.7rem; padding: 10px 20px; text-decoration: none; display: inline-block;
+        }
+
+        @keyframes blink { 50% { opacity: 0.5; } }
+
+        /* 飘字特效 */
+        .floating-text {
+            position: absolute;
+            font-weight: bold;
+            pointer-events: none;
+            animation: floatUp 1s forwards;
+            text-shadow: 2px 2px 0 #000;
+        }
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-50px) scale(1.5); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div class="header">
+            <div>SCORE: <span id="scoreVal" style="color:#ffeaa7">0</span></div>
+            <div>💰: <span id="coinVal">0</span></div>
+        </div>
+        <div class="controls-hint">
+            ◄ 左右滑动移动 ►
+        </div>
+    </div>
+
+    <div id="modal">
+        <h1>🐉 屠龙勇士<br><span style="font-size:0.8rem; color:#fff;">DRAGON SLAYER</span></h1>
+        <div style="text-align:center; color:#aaa; font-size:0.6rem; line-height:1.8; margin-bottom:20px;">
+            消灭数字方块<br>击碎宝箱获取神器
+        </div>
+        <button class="btn" id="startBtn">START GAME</button>
+        <a href="../../index.html" class="btn btn-home">HOME</a>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // --- ⚙️ 游戏配置 ---
+        const CONFIG = {
+            playerSpeed: 1, // 这里的速度是跟随手指的，系数为1
+            bulletSpeed: 12,
+            baseFireRate: 10, // 帧间隔，越小越快
+            dragonSpeedBase: 0.8, // 巨龙下压速度
+            colors: {
+                numLow: '#fab1a0', // 1-3
+                numMid: '#ff7675', // 4-7
+                numHigh: '#d63031', // 8+
+                chestCoin: '#ffeaa7',
+                chestWep: '#74b9ff',
+                chestSkill: '#a29bfe'
+            }
+        };
+
+        // --- 🔊 音效系统 (Synth) ---
+        const AudioCtrl = {
+            ctx: new (window.AudioContext || window.webkitAudioContext)(),
+            play(type) {
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                const now = this.ctx.currentTime;
+
+                switch(type) {
+                    case 'shoot':
+                        osc.type = 'square';
+                        osc.frequency.setValueAtTime(400, now);
+                        osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+                        gain.gain.setValueAtTime(0.05, now);
+                        gain.gain.linearRampToValueAtTime(0, now + 0.1);
+                        osc.start(now); osc.stop(now + 0.1);
+                        break;
+                    case 'hit':
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(200, now);
+                        gain.gain.setValueAtTime(0.05, now);
+                        gain.gain.linearRampToValueAtTime(0, now + 0.05);
+                        osc.start(now); osc.stop(now + 0.05);
+                        break;
+                    case 'break': // 方块破碎
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(100, now);
+                        osc.frequency.exponentialRampToValueAtTime(10, now + 0.2);
+                        gain.gain.setValueAtTime(0.1, now);
+                        gain.gain.linearRampToValueAtTime(0, now + 0.2);
+                        osc.start(now); osc.stop(now + 0.2);
+                        break;
+                    case 'powerup':
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(300, now);
+                        osc.frequency.linearRampToValueAtTime(800, now + 0.4);
+                        gain.gain.setValueAtTime(0.1, now);
+                        gain.gain.linearRampToValueAtTime(0, now + 0.4);
+                        osc.start(now); osc.stop(now + 0.4);
+                        break;
+                }
+            }
+        };
+
+        // --- 🎮 核心类 ---
+
+        class Player {
+            constructor() {
+                this.w = 40; this.h = 40;
+                this.x = canvas.width / 2;
+                this.y = canvas.height - 80;
+                this.color = '#00b894';
+                
+                // 状态
+                this.fireTimer = 0;
+                this.weapon = 'normal'; // normal, triple, spread
+                this.buffs = {
+                    rapid: 0, // 攻速加倍剩余帧数
+                    pierce: 0, // 穿透剩余帧数
+                };
+            }
+
+            update() {
+                // 射击逻辑
+                let rate = this.buffs.rapid > 0 ? CONFIG.baseFireRate / 2 : CONFIG.baseFireRate;
+                this.fireTimer++;
+                if (this.fireTimer >= rate) {
+                    this.shoot();
+                    this.fireTimer = 0;
+                }
+
+                // Buff 倒计时
+                if (this.buffs.rapid > 0) this.buffs.rapid--;
+                if (this.buffs.pierce > 0) this.buffs.pierce--;
+            }
+
+            shoot() {
+                AudioCtrl.play('shoot');
+                const isPierce = this.buffs.pierce > 0;
+                
+                if (this.weapon === 'triple') {
+                    bullets.push(new Bullet(this.x, this.y, 0, -CONFIG.bulletSpeed, isPierce));
+                    bullets.push(new Bullet(this.x - 10, this.y, -1, -CONFIG.bulletSpeed, isPierce));
+                    bullets.push(new Bullet(this.x + 10, this.y, 1, -CONFIG.bulletSpeed, isPierce));
+                } else if (this.weapon === 'spread') {
+                    bullets.push(new Bullet(this.x, this.y, 0, -CONFIG.bulletSpeed, isPierce));
+                    bullets.push(new Bullet(this.x, this.y, -3, -CONFIG.bulletSpeed * 0.9, isPierce));
+                    bullets.push(new Bullet(this.x, this.y, 3, -CONFIG.bulletSpeed * 0.9, isPierce));
+                    bullets.push(new Bullet(this.x, this.y, -6, -CONFIG.bulletSpeed * 0.8, isPierce));
+                    bullets.push(new Bullet(this.x, this.y, 6, -CONFIG.bulletSpeed * 0.8, isPierce));
+                } else {
+                    bullets.push(new Bullet(this.x, this.y, 0, -CONFIG.bulletSpeed, isPierce));
+                }
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                // 简单的勇士像素画
+                ctx.fillRect(this.x - 10, this.y - 10, 20, 20); // 身体
+                ctx.fillStyle = '#ffeaa7'; 
+                ctx.fillRect(this.x - 8, this.y - 18, 16, 10); // 头
+                
+                // 特效光环
+                if (this.buffs.rapid > 0 || this.buffs.pierce > 0) {
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${Math.random()})`;
+                    ctx.strokeRect(this.x - 15, this.y - 20, 30, 30);
+                }
+            }
+        }
+
+        class Bullet {
+            constructor(x, y, vx, vy, piercing) {
+                this.x = x; this.y = y;
+                this.vx = vx; this.vy = vy;
+                this.r = 4;
+                this.active = true;
+                this.piercing = piercing;
+                this.hitList = []; // 穿透模式下防止单帧重复伤害
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                if (this.y < 0 || this.x < 0 || this.x > canvas.width) this.active = false;
+            }
+
+            draw() {
+                ctx.fillStyle = this.piercing ? '#ff0' : '#fff';
+                ctx.fillRect(this.x - this.r, this.y - this.r, this.r*2, this.r*2);
+            }
+        }
+
+        class Block {
+            constructor(x, y, w, h, hp, type) {
+                this.x = x; this.y = y;
+                this.w = w; this.h = h;
+                this.hp = hp;
+                this.maxHp = hp;
+                this.type = type; // num, chest_coin, chest_wep, chest_skill
+                this.active = true;
+                this.flashTimer = 0;
+            }
+
+            update(speed) {
+                this.y += speed;
+                if (this.flashTimer > 0) this.flashTimer--;
+                if (this.y > canvas.height - 100) gameOver();
+            }
+
+            takeDamage(amt) {
+                this.hp -= amt;
+                this.flashTimer = 5;
+                AudioCtrl.play('hit');
+                if (this.hp <= 0) {
+                    this.active = false;
+                    this.breakEffect();
+                }
+            }
+
+            breakEffect() {
+                AudioCtrl.play('break');
+                // 粒子爆炸
+                for(let i=0; i<8; i++) {
+                    particles.push(new Particle(this.x + this.w/2, this.y + this.h/2, this.getColor()));
+                }
+
+                // 奖励逻辑
+                if (this.type === 'num') {
+                    Game.score += this.maxHp;
+                } else {
+                    AudioCtrl.play('powerup');
+                    this.triggerReward();
+                }
+            }
+
+            triggerReward() {
+                let txt = "";
+                if (this.type === 'chest_coin') {
+                    Game.coins += 10;
+                    txt = "+10💰";
+                } else if (this.type === 'chest_wep') {
+                    const weps = ['triple', 'spread'];
+                    player.weapon = weps[Math.floor(Math.random() * weps.length)];
+                    txt = "WEAPON UP!";
+                    // 武器持续10秒，然后变回普通
+                    setTimeout(() => { player.weapon = 'normal'; }, 10000);
+                } else if (this.type === 'chest_skill') {
+                    const skills = ['rapid', 'pierce', 'slow'];
+                    const skill = skills[Math.floor(Math.random() * skills.length)];
+                    if (skill === 'rapid') {
+                        player.buffs.rapid = 300; // 5秒 (60fps)
+                        txt = "RAPID FIRE!";
+                    } else if (skill === 'pierce') {
+                        player.buffs.pierce = 300;
+                        txt = "PIERCING!";
+                    } else if (skill === 'slow') {
+                        Game.slowTimer = 300;
+                        txt = "TIME SLOW!";
+                    }
+                }
+                showFloatingText(this.x + this.w/2, this.y, txt);
+            }
+
+            getColor() {
+                if (this.type === 'chest_coin') return CONFIG.colors.chestCoin;
+                if (this.type === 'chest_wep') return CONFIG.colors.chestWep;
+                if (this.type === 'chest_skill') return CONFIG.colors.chestSkill;
+                
+                if (this.hp <= 3) return CONFIG.colors.numLow;
+                if (this.hp <= 7) return CONFIG.colors.numMid;
+                return CONFIG.colors.numHigh;
+            }
+
+            draw() {
+                // 绘制方块
+                if (this.flashTimer > 0) {
+                    ctx.fillStyle = '#fff';
+                } else {
+                    ctx.fillStyle = this.getColor();
+                }
+                
+                // 像素风描边
+                ctx.fillRect(this.x, this.y, this.w, this.h);
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+                ctx.strokeRect(this.x, this.y, this.w, this.h);
+                
+                // 阴影效果 (立体感)
+                ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                ctx.fillRect(this.x + 4, this.y + this.h - 8, this.w - 8, 4);
+
+                // 内容绘制
+                ctx.fillStyle = '#fff';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                const cx = this.x + this.w/2;
+                const cy = this.y + this.h/2;
+
+                if (this.type === 'num') {
+                    ctx.font = '20px "Press Start 2P"';
+                    ctx.fillText(this.hp, cx, cy);
+                } else {
+                    ctx.font = '24px sans-serif';
+                    let icon = '❓';
+                    if (this.type === 'chest_coin') icon = '💰';
+                    if (this.type === 'chest_wep') icon = '🔫';
+                    if (this.type === 'chest_skill') icon = '✨';
+                    ctx.fillText(icon, cx, cy);
+                }
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y; this.color = color;
+                this.vx = (Math.random() - 0.5) * 10;
+                this.vy = (Math.random() - 0.5) * 10;
+                this.life = 1.0;
+                this.size = Math.random() * 6 + 4;
+            }
+            update() {
+                this.x += this.vx; this.y += this.vy;
+                this.life -= 0.05;
+                this.size *= 0.9;
+            }
+            draw() {
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.size, this.size);
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        // --- 🕹️ 游戏主逻辑 ---
+        
+        const Game = {
+            running: false,
+            score: 0,
+            coins: 0,
+            level: 1,
+            frames: 0,
+            slowTimer: 0,
+            
+            start() {
+                this.running = true;
+                this.score = 0;
+                this.coins = 0;
+                this.level = 1;
+                this.frames = 0;
+                
+                player = new Player();
+                bullets = [];
+                blocks = [];
+                particles = [];
+                
+                document.getElementById('modal').style.display = 'none';
+                updateUI();
+                
+                // 初始生成一行
+                spawnRow();
+                loop();
+            }
+        };
+
+        let player;
+        let bullets = [];
+        let blocks = [];
+        let particles = [];
+
+        // 屏幕适配
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            if(player) {
+                player.y = canvas.height - 80;
+                player.x = canvas.width / 2;
+            }
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        function spawnRow() {
+            const cols = 5;
+            const w = canvas.width / cols;
+            const h = w; // 正方形
+
+            // 生成一行方块
+            for (let i = 0; i < cols; i++) {
+                // 留空隙，不是填满
+                if (Math.random() > 0.7) continue;
+
+                let type = 'num';
+                let hp = Math.floor(Math.random() *
