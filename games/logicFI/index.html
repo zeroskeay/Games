@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F/I 逻辑训练营</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f8fafc; }
+        .slide-fade-enter-active { transition: all 0.3s ease-out; }
+        .slide-fade-leave-active { transition: all 0.2s cubic-bezier(1, 0.5, 0.8, 1); }
+        .slide-fade-enter-from, .slide-fade-leave-to { transform: translateY(20px); opacity: 0; }
+    </style>
+</head>
+<body>
+    <div id="app" class="min-h-screen flex flex-col text-slate-800">
+        
+        <nav class="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-50">
+            <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16">
+                    <div class="flex items-center gap-2">
+                        <div class="bg-indigo-600 text-white w-8 h-8 rounded flex items-center justify-center font-bold">F/I</div>
+                        <span class="font-bold text-lg tracking-tight">逻辑训练营</span>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <button 
+                            @click="mode = 'training'" 
+                            :class="mode === 'training' ? 'text-indigo-600 bg-indigo-50' : 'text-gray-500 hover:text-gray-700'"
+                            class="px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                        >
+                            <i class="ri-sword-line mr-1"></i> 实战训练
+                        </button>
+                        <button 
+                            @click="mode = 'free'" 
+                            :class="mode === 'free' ? 'text-indigo-600 bg-indigo-50' : 'text-gray-500 hover:text-gray-700'"
+                            class="px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                        >
+                            <i class="ri-edit-box-line mr-1"></i> 自由分析
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <main class="flex-grow container mx-auto max-w-4xl p-4 md:p-8">
+            
+            <div v-if="mode === 'training'" class="space-y-6">
+                <div class="flex items-center justify-between text-sm text-gray-500 mb-2">
+                    <span>当前挑战: 第 {{ currentQIndex + 1 }} 题</span>
+                    <span>共 {{ questionBank.length }} 题</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div class="bg-indigo-600 h-2.5 rounded-full transition-all duration-500" :style="{ width: ((currentQIndex + 1) / questionBank.length) * 100 + '%' }"></div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="p-6 md:p-8 border-b border-gray-100 bg-slate-50">
+                        <div class="flex justify-between items-start mb-4">
+                            <span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">{{ currentQuestion.tag }}</span>
+                            <span class="text-xs text-gray-400">难度: {{ currentQuestion.difficulty }}</span>
+                        </div>
+                        <h2 class="text-xl md:text-2xl font-medium text-gray-800 leading-relaxed">
+                            “{{ currentQuestion.text }}”
+                        </h2>
+                    </div>
+
+                    <div class="p-6 md:p-8 grid md:grid-cols-2 gap-8">
+                        <div>
+                            <div class="flex items-center justify-between mb-3">
+                                <label class="text-sm font-bold text-green-700 flex items-center gap-2">
+                                    <i class="ri-checkbox-circle-line"></i> Fact (事实)
+                                </label>
+                                <button @click="addInput('userFacts')" class="text-green-600 hover:bg-green-50 rounded p-1 transition" title="添加一条">
+                                    <i class="ri-add-line"></i>
+                                </button>
+                            </div>
+                            <div class="space-y-3">
+                                <div v-for="(val, idx) in userAnswers.facts" :key="'f'+idx" class="relative">
+                                    <input v-model="userAnswers.facts[idx]" placeholder="输入客观事实..." class="w-full bg-green-50/50 border border-green-200 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none transition">
+                                    <button @click="removeInput('userFacts', idx)" class="absolute right-2 top-2 text-gray-400 hover:text-red-500" v-if="userAnswers.facts.length > 1">
+                                        <i class="ri-close-line"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex items-center justify-between mb-3">
+                                <label class="text-sm font-bold text-amber-700 flex items-center gap-2">
+                                    <i class="ri-question-answer-line"></i> Inference (推断)
+                                </label>
+                                <button @click="addInput('userInferences')" class="text-amber-600 hover:bg-amber-50 rounded p-1 transition" title="添加一条">
+                                    <i class="ri-add-line"></i>
+                                </button>
+                            </div>
+                            <div class="space-y-3">
+                                <div v-for="(val, idx) in userAnswers.inferences" :key="'i'+idx" class="relative">
+                                    <input v-model="userAnswers.inferences[idx]" placeholder="输入主观推断..." class="w-full bg-amber-50/50 border border-amber-200 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none transition">
+                                    <button @click="removeInput('userInferences', idx)" class="absolute right-2 top-2 text-gray-400 hover:text-red-500" v-if="userAnswers.inferences.length > 1">
+                                        <i class="ri-close-line"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="px-6 pb-6 bg-gray-50 border-t border-gray-100 flex justify-center pt-6">
+                        <button 
+                            v-if="!showResult"
+                            @click="checkAnswer" 
+                            class="bg-indigo-600 text-white px-8 py-3 rounded-lg font-medium shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-xl hover:-translate-y-0.5 transition-all"
+                        >
+                            提交并查看参考答案
+                        </button>
+                        <button 
+                            v-else
+                            @click="nextQuestion" 
+                            class="bg-gray-800 text-white px-8 py-3 rounded-lg font-medium hover:bg-black transition-all flex items-center gap-2"
+                        >
+                            下一题 <i class="ri-arrow-right-line"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <transition name="slide-fade">
+                    <div v-if="showResult" class="bg-white rounded-2xl shadow-lg border-2 border-indigo-100 overflow-hidden">
+                        <div class="bg-indigo-50 p-4 border-b border-indigo-100 flex items-center gap-2">
+                            <i class="ri-lightbulb-flash-line text-indigo-600 text-xl"></i>
+                            <h3 class="font-bold text-indigo-900">参考答案与解析</h3>
+                        </div>
+                        
+                        <div class="p-6 md:p-8 grid md:grid-cols-2 gap-8 relative">
+                            <div class="hidden md:block absolute left-1/2 top-6 bottom-6 w-px bg-gray-100"></div>
+
+                            <div>
+                                <h4 class="text-xs font-bold text-gray-400 uppercase mb-3 tracking-wider">F - 事实应当包含：</h4>
+                                <ul class="space-y-2">
+                                    <li v-for="fact in currentQuestion.refFacts" class="flex items-start gap-2 text-sm bg-green-50 p-3 rounded border border-green-100 text-green-900">
+                                        <i class="ri-check-line mt-0.5 shrink-0"></i>
+                                        {{ fact }}
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div>
+                                <h4 class="text-xs font-bold text-gray-400 uppercase mb-3 tracking-wider">I - 推断应当包含：</h4>
+                                <ul class="space-y-2">
+                                    <li v-for="inf in currentQuestion.refInferences" class="flex items-start gap-2 text-sm bg-amber-50 p-3 rounded border border-amber-100 text-amber-900">
+                                        <i class="ri-links-line mt-0.5 shrink-0"></i>
+                                        {{ inf }}
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-800 text-slate-200 p-6 text-sm leading-relaxed border-t border-slate-700">
+                            <span class="text-yellow-400 font-bold mr-2">💡 逻辑拆解:</span>
+                            {{ currentQuestion.analysis }}
+                        </div>
+                    </div>
+                </transition>
+            </div>
+
+            <div v-if="mode === 'free'" class="bg-white rounded-xl shadow-sm p-8 text-center space-y-6">
+                <div class="text-gray-400 mb-4">
+                    <i class="ri-tools-line text-4xl"></i>
+                </div>
+                <h2 class="text-xl font-bold">自由分析模式</h2>
+                <p class="text-gray-500">这是你之前使用的工具版本，适合处理你自己找来的长段落文本。</p>
+                
+                <div class="bg-yellow-50 border border-yellow-200 p-4 rounded-lg text-left text-sm text-yellow-800">
+                    <strong>提示：</strong> 在这个模式下，没有“标准答案”。你需要依靠自己的判断力，或将结果导出后发给朋友/导师进行 peer review。
+                </div>
+
+                <textarea 
+                    v-model="freeText" 
+                    class="w-full h-32 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                    placeholder="在此输入你想分析的任意段落..."
+                ></textarea>
+
+                <button class="bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-700 transition" @click="startFreeAnalysis">
+                    开始拆解
+                </button>
+                
+                <div v-if="freeSegments.length > 0" class="mt-8 text-left border-t pt-6">
+                    <h3 class="font-bold mb-4">拆解工作台</h3>
+                    <div v-for="(seg, idx) in freeSegments" :key="idx" class="mb-6 bg-gray-50 p-4 rounded border">
+                        <p class="mb-3 font-serif">{{ seg.original }}</p>
+                        <div class="grid grid-cols-2 gap-4">
+                            <textarea placeholder="F: 事实..." class="w-full p-2 text-sm border rounded h-20 focus:border-green-500 outline-none"></textarea>
+                            <textarea placeholder="I: 推断..." class="w-full p-2 text-sm border rounded h-20 focus:border-amber-500 outline-none"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive } = Vue;
+
+        // --- 题库数据 ---
+        const QUESTIONS = [
+            {
+                text: "他今天迟到，应该是因为昨晚睡得太晚。",
+                tag: "因果归因",
+                difficulty: "⭐️ 入门",
+                refFacts: ["他今天迟到了"],
+                refInferences: [
+                    "他昨晚睡得太晚 (这是猜测，也许他睡得很早但失眠)",
+                    "迟到是因为睡得晚 (这是对因果关系的推断)"
+                ],
+                analysis: "这是最典型的混淆。哪怕‘他睡得晚’是事实，‘迟到是因为睡得晚’依然是一个推断（I）。也许是因为堵车呢？在没有验证之前，因果联系永远是推断。"
+            },
+            {
+                text: "这双鞋太贵了，根本不值这个价。",
+                tag: "价值判断",
+                difficulty: "⭐️⭐️ 进阶",
+                refFacts: ["这双鞋标价为 X 元 (具体的数字)"],
+                refInferences: [
+                    "这双鞋‘贵’ (贵是相对于你的消费能力的主观评价)",
+                    "不值这个价 (这是对价值的主观判断)"
+                ],
+                analysis: "形容词通常都是推断的信号。‘贵’、‘好’、‘坏’、‘丑’都是 I。F 只能是具体的数字或物理属性。"
+            },
+            {
+                text: "老板今天开会一直皱眉，肯定是对我们的方案不满意。",
+                tag: "读心术",
+                difficulty: "⭐️⭐️⭐️ 困难",
+                refFacts: ["老板今天开会时有皱眉的动作"],
+                refInferences: [
+                    "老板不满意 (也许他只是牙疼，或者在思考别的事)",
+                    "皱眉是因为不满意 (归因推断)"
+                ],
+                analysis: "我们经常犯‘读心术’的错误，把看到的微表情（F）直接等同于对方的内心想法（I）。必须把动作和意图分开。"
+            },
+            {
+                text: "数据显示销量下降了20%，我们的营销策略完全失败了。",
+                tag: "数据解读",
+                difficulty: "⭐️⭐️⭐️ 困难",
+                refFacts: ["数据显示销量下降了20%"],
+                refInferences: [
+                    "营销策略失败了 (下降可能源于市场环境、竞争对手、季节性因素，不一定是策略问题)",
+                    "完全失败 (程度副词通常带有情绪色彩)"
+                ],
+                analysis: "数据是事实，但对数据的解释（Interpretation）永远是推断。不要让数据直接跳跃到结论。"
+            },
+            {"text":"他今天迟到，可能是因为昨晚熬夜。","tag":"因果推断","difficulty":"⭐️⭐️","refFacts":["他今天迟到"],"refInferences":["可能是因为昨晚熬夜"],"analysis":"句子中只有‘今天迟到’是可以直接观察到的事实，‘可能是因为熬夜’属于推测因果。"},
+            {"text":"苹果公司发布了新款手机，大家都很期待。","tag":"情绪/评价","difficulty":"⭐️","refFacts":["苹果公司发布了新款手机"],"refInferences":["大家都很期待"],"analysis":"‘发布新款手机’是客观事实，‘大家都很期待’带有情绪评价，属于推断或概括。"},
+            {"text":"这个项目很受欢迎，所以一定会成功。","tag":"以偏概全","difficulty":"⭐️⭐️⭐️","refFacts":["这个项目很受欢迎"],"refInferences":["一定会成功"],"analysis":"受欢迎是事实观察，但从受欢迎推断必然成功是逻辑跳跃，属于推断。"},
+            {"text":"他昨天买了很多股票，可能对市场行情有自己的判断。","tag":"推测行为动机","difficulty":"⭐️⭐️","refFacts":["他昨天买了很多股票"],"refInferences":["可能对市场行情有自己的判断"],"analysis":"买股票是事实动作，推测他买的原因属于推断。"},
+            {"text":"天气预报说今天会下雨，所以你最好带伞。","tag":"因果建议","difficulty":"⭐️⭐️","refFacts":["天气预报说今天会下雨"],"refInferences":["你最好带伞"],"analysis":"天气预报是可验证事实，‘最好带伞’是基于事实的推断或建议，不是事实本身。"},
+            {"text":"公司利润增长了，说明管理层决策得当。","tag":"因果推断","difficulty":"⭐️⭐️⭐️","refFacts":["公司利润增长了"],"refInferences":["说明管理层决策得当"],"analysis":"利润增长可以验证，‘说明管理层决策得当’是对原因的推断。"},
+            {"text":"他每天早上跑步，所以身体一定很好。","tag":"过度推断","difficulty":"⭐️⭐️","refFacts":["他每天早上跑步"],"refInferences":["身体一定很好"],"analysis":"每天跑步是可观察事实，但身体健康与否不能直接从这个行为推断，属于逻辑跳跃。"},
+            {"text":"这家餐厅生意火爆，说明菜一定很好吃。","tag":"以偏概全","difficulty":"⭐️⭐️⭐️","refFacts":["这家餐厅生意火爆"],"refInferences":["菜一定很好吃"],"analysis":"生意火爆是事实，菜好不好吃是推断，存在以偏概全的逻辑错误。"},
+            {"text":"他在会议上没有发言，可能对这个方案不认可。","tag":"行为动机推断","difficulty":"⭐️⭐️","refFacts":["他在会议上没有发言"],"refInferences":["可能对这个方案不认可"],"analysis":"不发言是客观事实，但对方案态度属于推测，无法直接验证。"},
+            {"text":"昨天股市大涨，投资者情绪一定很高涨。","tag":"情绪推断","difficulty":"⭐️⭐️","refFacts":["昨天股市大涨"],"refInferences":["投资者情绪一定很高涨"],"analysis":"股市涨跌是事实，投资者情绪属于推测，不可直接观察。"},
+            {"text":"他申请了新的职位，可能想换工作。","tag":"行为动机推断","difficulty":"⭐️⭐️","refFacts":["他申请了新的职位"],"refInferences":["可能想换工作"],"analysis":"申请职位是事实，动机属于推断。"},
+            {"text":"她每天喝绿茶，所以皮肤一定很好。","tag":"过度推断","difficulty":"⭐️⭐️","refFacts":["她每天喝绿茶"],"refInferences":["皮肤一定很好"],"analysis":"喝茶是事实，但皮肤状态不能直接由此推断。"},
+            {"text":"新电影票房爆炸，说明剧情很精彩。","tag":"以偏概全","difficulty":"⭐️⭐️⭐️","refFacts":["新电影票房爆炸"],"refInferences":["剧情很精彩"],"analysis":"票房是事实，但剧情好坏无法直接由票房推断，属于推测。"},
+            {"text":"他没有参加聚会，可能是生病了。","tag":"行为动机推断","difficulty":"⭐️⭐️","refFacts":["他没有参加聚会"],"refInferences":["可能是生病了"],"analysis":"缺席是事实，原因属于推测。"},
+            {"text":"公司发布了新产品，说明公司研发实力强。","tag":"因果推断","difficulty":"⭐️⭐️⭐️","refFacts":["公司发布了新产品"],"refInferences":["说明公司研发实力强"],"analysis":"新产品发布是事实，但研发实力属于推断，不是直接观察到的。"},
+            {"text":"她参加了马拉松比赛，所以身体一定很健康。","tag":"过度推断","difficulty":"⭐️⭐️","refFacts":["她参加了马拉松比赛"],"refInferences":["身体一定很健康"],"analysis":"参赛是事实，但身体健康不能完全由此断定。"},
+            {"text":"他买了很多书，说明他很聪明。","tag":"以偏概全","difficulty":"⭐️⭐️⭐️","refFacts":["他买了很多书"],"refInferences":["说明他很聪明"],"analysis":"购买书籍是事实，但聪明与否无法直接推断，属于逻辑跳跃。"},
+            {"text":"昨天股市下跌，投资者都很恐慌。","tag":"情绪推断","difficulty":"⭐️⭐️","refFacts":["昨天股市下跌"],"refInferences":["投资者都很恐慌"],"analysis":"股市下跌是事实，但投资者情绪未必统一，属于推断。"},
+            {"text":"他拒绝了邀请，可能不喜欢这个活动。","tag":"行为动机推断","difficulty":"⭐️⭐️","refFacts":["他拒绝了邀请"],"refInferences":["可能不喜欢这个活动"],"analysis":"拒绝是事实，但动机属于推测。"},
+            {"text":"这款手机销量很好，说明用户都喜欢它。","tag":"以偏概全","difficulty":"⭐️⭐️⭐️","refFacts":["这款手机销量很好"],"refInferences":["用户都喜欢它"],"analysis":"销量是事实，用户喜好是推断，存在以偏概全。"},
+            {"text":"她加班到很晚，可能是工作任务多。","tag":"行为动机推断","difficulty":"⭐️⭐️","refFacts":["她加班到很晚"],"refInferences":["可能是工作任务多"],"analysis":"加班是事实，加班原因属于推断。"},
+            {"text":"他在社交媒体上发了很多旅行照片，说明他生活很幸福。","tag":"情绪推断","difficulty":"⭐️⭐️⭐️","refFacts":["他在社交媒体上发了很多旅行照片"],"refInferences":["说明他生活很幸福"],"analysis":"发照片是事实，生活幸福是推断。"},
+            {"text":"这家店顾客很多，所以一定味道很好。","tag":"以偏概全","difficulty":"⭐️⭐️⭐️","refFacts":["这家店顾客很多"],"refInferences":["味道很好"],"analysis":"顾客多是事实，但味道好坏属于推断。"},
+            {"text":"他经常迟到，可能工作不认真。","tag":"过度推断","difficulty":"⭐️⭐️⭐️","refFacts":["他经常迟到"],"refInferences":["可能工作不认真"],"analysis":"迟到是事实，但工作态度不能仅凭迟到断定。"},
+            {"text":"她每天学习十小时，所以成绩一定很好。","tag":"过度推断","difficulty":"⭐️⭐️⭐️","refFacts":["她每天学习十小时"],"refInferences":["成绩一定很好"],"analysis":"学习时间是事实，但成绩还涉及效率、方法等，不能直接推断。"},
+            {"text":"公司宣布裁员，说明经济形势不好。","tag":"因果推断","difficulty":"⭐️⭐️⭐️","refFacts":["公司宣布裁员"],"refInferences":["说明经济形势不好"],"analysis":"裁员是事实，但经济形势可能有多种因素，属于推断。"},
+            {"text":"他连续买了三只股票上涨，说明他很会投资。","tag":"以偏概全","difficulty":"⭐️⭐️⭐️","refFacts":["他连续买了三只股票上涨"],"refInferences":["说明他很会投资"],"analysis":"股票上涨是事实，但投资能力不能仅凭几次结果断定。"},
+            {"text":"她今天笑了，可能心情很好。","tag":"情绪推断","difficulty":"⭐️⭐️","refFacts":["她今天笑了"],"refInferences":["可能心情很好"],"analysis":"笑是事实，但心情属于推测。"},
+            {"text":"这部电影评价很好，所以一定值得看。","tag":"过度推断","difficulty":"⭐️⭐️⭐️","refFacts":["电影评价很好"],"refInferences":["一定值得看"],"analysis":"评价是事实，但是否值得看属于主观推断。"},
+            {"text":"他每周去健身房三次，说明他很注重健康。","tag":"行为动机推断","difficulty":"⭐️⭐️","refFacts":["他每周去健身房三次"],"refInferences":["说明他很注重健康"],"analysis":"健身频率是事实，但动机属于推断。"},
+            {"text":"股票涨停了，说明公司盈利能力很强。","tag":"因果推断","difficulty":"⭐️⭐️⭐️","refFacts":["股票涨停了"],"refInferences":["公司盈利能力很强"],"analysis":"涨停是事实，但盈利能力不能直接由股价涨幅断定。"},
+            {"text":"她经常点赞别人的照片，所以一定很友好。","tag":"过度推断","difficulty":"⭐️⭐️⭐️","refFacts":["她经常点赞别人的照片"],"refInferences":["一定很友好"],"analysis":"点赞行为是事实，但友好与否不能直接推断。"},
+            {"text":"他在会议上提出了很多建议，说明他很专业。","tag":"以偏概全","difficulty":"⭐️⭐️⭐️","refFacts":["他在会议上提出了很多建议"],"refInferences":["说明他很专业"],"analysis":"提出建议是事实，但专业水平不能仅凭数量断定。"},
+            {"text":"她昨天加班到很晚，可能任务特别多。","tag":"行为动机推断","difficulty":"⭐️⭐️","refFacts":["她昨天加班到很晚"],"refInferences":["可能任务特别多"],"analysis":"加班是事实，原因是推测。"},
+            {"text":"他连续三天没有发消息，说明他不在乎你。","tag":"过度推断","difficulty":"⭐️⭐️⭐️","refFacts":["他连续三天没有发消息"],"refInferences":["说明他不在乎你"],"analysis":"未发消息是事实，情感态度是推断。"},
+            {"text":"今天路上很堵，说明大家都出门了。","tag":"以偏概全","difficulty":"⭐️⭐️","refFacts":["今天路上很堵"],"refInferences":["大家都出门了"],"analysis":"路堵是事实，但推测‘大家都出门’属于过度概括。"},
+            {"text":"她报名了绘画班，可能想培养兴趣。","tag":"行为动机推断","difficulty":"⭐️⭐️","refFacts":["她报名了绘画班"],"refInferences":["可能想培养兴趣"],"analysis":"报名是事实，动机是推断。"},
+            {"text":"股票连续上涨，说明投资者信心十足。","tag":"情绪推断","difficulty":"⭐️⭐️⭐️","refFacts":["股票连续上涨"],"refInferences":["投资者信心十足"],"analysis":"股价上涨是事实，但投资者心理属于推断。"},
+            {"text":"他买了最新款手机，说明他喜欢高科技产品。","tag":"行为动机推断","difficulty":"⭐️⭐️","refFacts":["他买了最新款手机"],"refInferences":["说明他喜欢高科技产品"],"analysis":"购买行为是事实，喜好是推断。"},
+            {"text":"她每天练习钢琴两小时，成绩一定很好。","tag":"过度推断","difficulty":"⭐️⭐️⭐️","refFacts":["她每天练习钢琴两小时"],"refInferences":["成绩一定很好"],"analysis":"练琴时间是事实，但成绩还取决于效率与天赋，不能直接推断。"},
+            {"text":"公司裁员了，说明管理层很冷酷。","tag":"情绪评价","difficulty":"⭐️⭐️⭐️","refFacts":["公司裁员了"],"refInferences":["管理层很冷酷"],"analysis":"裁员是事实，但管理层态度属于主观推断和情绪评价。"},
+            {"text":"他开车很快，可能是赶时间。","tag":"行为动机推断","difficulty":"⭐️⭐️","refFacts":["他开车很快"],"refInferences":["可能是赶时间"],"analysis":"快速驾驶是事实，原因是推测。"},
+            {"text":"这家餐厅生意好，说明菜一定好吃。","tag":"以偏概全","difficulty":"⭐️⭐️⭐️","refFacts":["这家餐厅生意好"],"refInferences":["菜一定好吃"],"analysis":"生意好是事实，菜味道属于推断。"},
+            {"text":"她经常熬夜，可能身体不好。","tag":"过度推断","difficulty":"⭐️⭐️","refFacts":["她经常熬夜"],"refInferences":["可能身体不好"],"analysis":"熬夜是事实，身体状况是推断。"},
+            {"text":"他每天锻炼一小时，说明很健康。","tag":"过度推断","difficulty":"⭐️⭐️","refFacts":["他每天锻炼一小时"],"refInferences":["说明很健康"],"analysis":"锻炼时间是事实，健康状况属于推断。"},
+            {"text":"股票涨幅大，说明公司经营很好。","tag":"因果推断","difficulty":"⭐️⭐️⭐️","refFacts":["股票涨幅大"],"refInferences":["公司经营很好"],"analysis":"股价是事实，公司经营状况是推断。"},
+            {"text":"他发了很多旅行照片，说明他生活很幸福。","tag":"情绪推断","difficulty":"⭐️⭐️⭐️","refFacts":["他发了很多旅行照片"],"refInferences":["说明他生活很幸福"],"analysis":"发照片是事实，生活幸福属于推断。"},
+            {"text":"她买了很多书，说明她很聪明。","tag":"以偏概全","difficulty":"⭐️⭐️⭐️","refFacts":["她买了很多书"],"refInferences":["说明她很聪明"],"analysis":"购书是事实，聪明与否属于推断。"},
+            {"text":"他连续三天没打卡，可能工作不认真。","tag":"过度推断","difficulty":"⭐️⭐️⭐️","refFacts":["他连续三天没打卡"],"refInferences":["可能工作不认真"],"analysis":"未打卡是事实，工作态度属于推断。"},
+            {"text":"公司业绩增长，说明管理层很优秀。","tag":"因果推断","difficulty":"⭐️⭐️⭐️","refFacts":["公司业绩增长"],"refInferences":["管理层很优秀"],"analysis":"业绩增长是事实，管理层能力是推断。"},
+            {"text":"她笑了，说明心情很好。","tag":"情绪推断","difficulty":"⭐️⭐️","refFacts":["她笑了"],"refInferences":["说明心情很好"],"analysis":"笑是事实，心情属于推测。"},
+            {"text":"他加班到深夜，可能工作压力大。","tag":"行为动机推断","difficulty":"⭐️⭐️","refFacts":["他加班到深夜"],"refInferences":["可能工作压力大"],"analysis":"加班事实可观察，压力属于推断。"},
+            {"text":"这部电影票房很好，说明剧情精彩。","tag":"以偏概全","difficulty":"⭐️⭐️⭐️","refFacts":["电影票房很好"],"refInferences":["剧情精彩"],"analysis":"票房是事实，剧情好坏属于推断。"},
+            {"text":"她报名健身班，说明很注重健康。","tag":"行为动机推断","difficulty":"⭐️⭐️","refFacts":["她报名健身班"],"refInferences":["说明很注重健康"],"analysis":"报名是事实，动机属于推断。"},
+            {"text":"他买了最新款手机，说明喜欢科技产品。","tag":"行为动机推断","difficulty":"⭐️⭐️","refFacts":["他买了最新款手机"],"refInferences":["说明喜欢科技产品"],"analysis":"购买行为是事实，喜好是推断。"},
+            { "text": "我认识的五个北京人都不爱说话，所以北京人普遍内向。", "tag": "以偏概全", "difficulty": "⭐️⭐️", "refFacts": ["说话者只接触过五个北京人"], "refInferences": ["这五个北京人都不爱说话", "因此所有北京人都内向"], "analysis": "样本极小且无代表性，把极少数个例推及全体属于典型以偏概全。" },
+  
+            { "text": "这家餐厅今天服务很差，以前肯定也一直很差。", "tag": "以偏概全", "difficulty": "⭐️⭐️", "refFacts": ["今天这家餐厅服务很差"], "refInferences": ["这家餐厅以前一直都很差"], "analysis": "单次经历不能代表长期情况，用一次负面体验否定全部历史是过度概括。" },
+            
+            { "text": "小明数学考了100分，他一定很聪明。", "tag": "单因谬误", "difficulty": "⭐️⭐️", "refFacts": ["小明这次数学考了100分"], "refInferences": ["小明整体智力很高", "数学好=全科都聪明"], "analysis": "一次高分只是事实，背后可能有多种原因，把单一结果归因于‘聪明’这种综合特质属于单因归因。" },
+            
+            { "text": "如果你不支持我的提案，那就是和我作对。", "tag": "虚假二分法", "difficulty": "⭐️⭐️⭐️", "refFacts": ["有人不支持我的提案"], "refInferences": ["他一定是故意和我作对", "只有支持或作对两种可能"], "analysis": "把复杂立场简化为‘非友即敌’，排除了中立、部分认同、有更好方案等可能性。" },
+            
+            { "text": "全球变暖根本不存在，因为今天北京特别冷。", "tag": "稻草人谬误+以偏概全", "difficulty": "⭐️⭐️⭐️", "refFacts": ["今天北京气温很低"], "refInferences": ["局部短期天气可以否定全球长期气候趋势", "全球变暖理论声称每天每地都要变热"], "analysis": "先歪曲对方观点（没人说天气不会冷），再用单一反例攻击被歪曲的观点。" },
+            
+            { "text": "他迟到了，肯定是故意不尊重我。", "tag": "动机谬误", "difficulty": "⭐️⭐️", "refFacts": ["他迟到了"], "refInferences": ["他故意迟到", "迟到是为了不尊重我"], "analysis": "迟到只是客观事实，原因可能是堵车、闹钟没响等，把动机直接归为恶意是主观推断。" },
+            
+            { "text": "这篇文章批评了政府，所以作者一定是反对派。", "tag": "标签化谬误", "difficulty": "⭐️⭐️⭐️", "refFacts": ["这篇文章批评了政府的某项政策"], "refInferences": ["作者政治立场属于反对派", "批评=全面反政府"], "analysis": "用一个具体行为给整个人贴政治标签，忽视了可能只是建设性批评。" },
+            
+            { "text": "我们公司去年赚了10个亿，今年才赚8个亿，说明我们开始走下坡路了。", "tag": "滑坡谬误", "difficulty": "⭐️⭐️⭐️", "refFacts": ["去年利润10亿，今年8亿"], "refInferences": ["公司即将倒闭", "利润下降趋势会一直持续"], "analysis": "利润小幅波动被夸大为灾难性崩盘，缺少持续下降的证据。" },
+            
+            { "text": "专家说这种减肥药有效，所以绝对安全。", "tag": "诉诸权威", "difficulty": "⭐️⭐️", "refFacts": ["某专家说该减肥药有效"], "refInferences": ["专家说的都对", "有效必然等于完全无副作用"], "analysis": "把‘有效’偷换成‘绝对安全’，并把权威在某一领域的意见无限扩大。" },
+            
+            { "text": "所有戴眼镜的人都像书呆子，我男朋友也戴眼镜，他肯定不浪漫。", "tag": "刻板印象", "difficulty": "⭐️⭐️", "refFacts": ["说话者认为戴眼镜=书呆子", "男朋友戴眼镜"], "refInferences": ["男朋友一定不浪漫"], "analysis": "用外貌特征直接推出性格特质，属于典型的刻板印象推断。" },
+            
+            { "text": "我妈说多喝热水可以治百病，所以感冒了就拼命喝热水就行。", "tag": "诉诸传统", "difficulty": "⭐️⭐️", "refFacts": ["我妈说多喝热水可以治百病"], "refInferences": ["传统说法一定正确", "热水能治好当前感冒"], "analysis": "因为‘老一辈都这么说’就认为一定有效，忽视科学证据。" },
+            
+            { "text": "他要是真心爱我，就应该把工资卡上交。", "tag": "真苏格兰人谬误", "difficulty": "⭐️⭐️⭐️", "refFacts": ["他没有把工资卡上交"], "refInferences": ["他不真心爱我", "真心爱我就必须上交工资卡"], "analysis": "随意设定‘真心’的标准，并用对方没达到标准来否定其真心。" },
+            
+            { "text": "这件衣服这么贵，肯定质量很好。", "tag": "光环效应", "difficulty": "⭐️⭐️", "refFacts": ["这件衣服价格很高"], "refInferences": ["高价=高质量", "一定值得买"], "analysis": "用价格这一个属性辐射到整体质量评价，属于典型光环效应。" },
+            
+            { "text": "我们不能禁枪，因为只要有一个好人用枪自卫成功，就证明枪对社会有积极作用。", "tag": "轶事谬误", "difficulty": "⭐️⭐️⭐️⭐️", "refFacts": ["存在个别好人用枪自卫成功的案例"], "refInferences": ["因此整体禁枪政策是错的"], "analysis": "用极少数正面个例否定需要统计数据支持的公共政策。" },
+            
+            { "text": "小红今天穿了红裙子，她心情一定很好。", "tag": "读心术谬误", "difficulty": "⭐️⭐️", "refFacts": ["小红今天穿了红裙子"], "refInferences": ["她穿红色是因为心情好"], "analysis": "颜色选择可能是习惯、搭配等其他原因都被忽略，直接推断内心状态。" },
+            
+            { "text": "我不打疫苗是因为我认识的人打完都没事，不打也肯定没事。", "tag": "基础比率忽视", "difficulty": "⭐️⭐️⭐️⭐️", "refFacts": ["说话者认识的人没打疫苗也没得病"], "refInferences": ["疫苗没用", "不打疫苗风险很低"], "analysis": "用极小样本的‘没事’否定大规模统计数据得出的疫苗有效性和疾病传播风险。" },
+            
+            { "text": "领导都腐败，所以这个新上来的领导肯定也会腐败。", "tag": "毒树之果谬误", "difficulty": "⭐️⭐️⭐️", "refFacts": ["过去或部分领导存在腐败现象"], "refInferences": ["所有领导包括新人必然腐败"], "analysis": "用群体部分负面特征污染对新个体的判断。" },
+            
+            { "text": "他开车那么快，肯定是赶着去干坏事。", "tag": "动机归因偏差", "difficulty": "⭐️⭐️", "refFacts": ["他开车速度很快"], "refInferences": ["他要去干坏事"], "analysis": "可能只是赶飞机、送人去医院等，把速度直接关联到负面动机。" },
+            
+            { "text": "这个网红推荐的股票肯定能涨，我马上all in。", "tag": "诉诸名人", "difficulty": "⭐️⭐️", "refFacts": ["某网红推荐了某只股票"], "refInferences": ["网红推荐的股票一定能赚钱"], "analysis": "网红未必懂股票，把其影响力错误迁移到专业能力上。" },
+            
+            { "text": "女生学不好理科是天生的，没必要强求。", "tag": "本质主义谬误", "difficulty": "⭐️⭐️⭐️⭐️", "refFacts": ["历史上女生在某些理科领域表现相对较弱"], "refInferences": ["这是由基因决定无法改变", "女生天生不适合理科"], "analysis": "把社会、文化、教育等多重因素造成的结果归因为‘天生’，阻碍改进可能。" },
+
+            { "text": "我连续投了十次硬币都是正面，下一次肯定是反面了。", "tag": "赌徒谬误", "difficulty": "⭐️⭐️⭐️", "refFacts": ["前十次都是正面"], "refInferences": ["下一次更可能反面来‘平衡’"], "analysis": "每次投掷独立，前十次结果不影响第十一次的概率产生任何影响。" },
+            
+            { "text": "他没回我消息，就是不喜欢我了。", "tag": "极端化思维", "difficulty": "⭐️", "refFacts": ["他暂时没回消息"], "refInferences": ["他完全不喜欢我了", "关系完了"], "analysis": "把短暂行为直接推到关系终结，跳跃式灾难化解读。" },
+            
+            { "text": "穷人就是懒，不努力才穷的。", "tag": "公正世界谬误", "difficulty": "⭐️⭐️⭐️⭐️", "refFacts": ["有人很穷"], "refInferences": ["他活该", "贫穷完全是个人努力不足导致"], "analysis": "忽视结构性因素（如教育、机会、疾病等），把结果完全归咎于个人道德。" },
+            
+            { "text": "这家店生意那么好，东西肯定好吃。", "tag": "从众效应误用", "difficulty": "⭐️⭐️", "refFacts": ["这家店排队很长，生意很好"], "refInferences": ["菜品一定好吃"], "analysis": "可能是营销、位置、网红打卡等原因，把人多直接等同于品质高。" },
+            
+            { "text": "我不怕得癌症，因为我外婆抽了一辈子烟都没得癌症。", "tag": "幸存者偏差", "difficulty": "⭐️⭐️⭐️⭐️", "refFacts": ["外婆抽烟一生未得癌症"], "refInferences": ["抽烟不会得癌症", "我也不会得"], "analysis": "只看到活下来的‘幸存者’，忽略了大量因抽烟早逝而无法讲故事的人。" },
+            
+            { "text": "只要肯努力，普通人也能当上马云。", "tag": "幸存者偏差", "difficulty": "⭐️⭐️⭐️⭐️", "refFacts": ["马云从普通人变成首富"], "refInferences": ["所有普通人只要努力都能达到同样高度"], "analysis": "只看到顶端成功者，忽视了无数同样努力却未成功的人。" },
+            
+            { "text": "这个杀人犯小时候数学很好，可见学好数理化也没用。", "tag": "道德许可谬误", "difficulty": "⭐️⭐️⭐️", "refFacts": ["某杀人犯小时候数学很好"], "refInferences": ["学好数理化没有道德教化作用"], "analysis": "用极端个例否定教育的整体正面价值。" },
+            
+            { "text": "他这么有钱，肯定偷税漏税了。", "tag": "刻板印象+有罪推定", "difficulty": "⭐️⭐️", "refFacts": ["他很有钱"], "refInferences": ["他的钱来路不正"], "analysis": "把财富直接关联到不道德行为，无证据即定罪。" },
+            
+            { "text": "我不相信气候变化，因为我爷爷说地球一直冷热交替。", "tag": "诉诸年龄/传统", "difficulty": "⭐️⭐️", "refFacts": ["爷爷认为地球一直冷热交替"], "refInferences": ["气候变化是假的", "老一辈说的比科学家靠谱"], "analysis": "用长辈的个人感受否定科学共识。" },
+            
+            { "text": "所有胖子都贪吃没自制力。", "tag": "过度简化因果", "difficulty": "⭐️⭐️", "refFacts": ["有些胖子确实吃得多"], "refInferences": ["所有肥胖都由贪吃引起", "胖子都缺乏自制力"], "analysis": "忽视甲状腺、基因、药物、疾病等复杂原因。" },
+            
+            { "text": "他拒绝加班，就是不忠诚于公司。", "tag": "虚假二分法", "difficulty": "⭐️⭐️⭐️", "refFacts": ["他拒绝了某次加班"], "refInferences": ["他不爱公司", "只有加班才叫忠诚"], "analysis": "把一次具体行为上升到对整个人品和态度的否定。" },
+            
+            { "text": "这个政策失败了，所以提出这个政策的人能力很差。", "tag": "结果谬误", "difficulty": "⭐️⭐️⭐️", "refFacts": ["某政策执行后效果不佳"], "refInferences": ["提出政策的人能力低下"], "analysis": "政策失败可能因执行、外部环境等，把所有责任归于最初提出者。" },
+            
+            { "text": "我不戴头盔骑车没事，说明头盔没用。", "tag": "轶事谬误+幸存者偏差", "difficulty": "⭐️⭐️", "refFacts": ["说话者多次不戴头盔没出事"], "refInferences": ["头盔对所有人都没用"], "analysis": "用自己的幸运经历否定统计意义上的保护作用。" },
+            
+            { "text": "女生天生就喜欢粉色，这是生物决定的。", "tag": "本质主义+社会化误当生物", "difficulty": "⭐️⭐️⭐️⭐️", "refFacts": ["很多女生小时候被给予粉色物品，目前也有些喜欢粉色"], "refInferences": ["基因决定女生必须喜欢粉色"], "analysis": "把社会化教养结果误认为是先天生物特质。" },
+            
+            { "text": "他不吃辣，肯定不是四川人。", "tag": "真苏格兰人谬误", "difficulty": "⭐️⭐️", "refFacts": ["他不吃辣"], "refInferences": ["他不可能是四川人", "四川人必须都吃辣"], "analysis": "随意设定身份标准并反向推断。" },
+            
+            { "text": "这个牌子手机那么多人买，肯定不会坏。", "tag": "从众谬误", "difficulty": "⭐️⭐️", "refFacts": ["该品牌手机销量很好"], "refInferences": ["产品质量一定过硬，不会有质量问题"], "analysis": "把销量等同于质量，忽视营销、价格等其他因素。" },
+            
+            { "text": "我朋友吃了这个保健品，癌症好了，所以它能治癌。", "tag": "虚假因果+轶事谬误", "difficulty": "⭐️⭐️⭐️", "refFacts": ["朋友吃了某保健品后癌症好转"], "refInferences": ["保健品治好了癌症"], "analysis": "可能是自愈、正规治疗起作用等，把时间先后当成因果。" },
+            
+            { "text": "我不怕坐飞机，因为飞机失事率那么低，比车低多了。", "tag": "正确（无明显谬误）", "difficulty": "⭐️", "refFacts": ["统计数据显示飞机失事率远低于汽车"], "refInferences": ["因此坐飞机比开车更安全"], "analysis": "这里事实与推断一致，属于合理使用统计数据，无明显逻辑谬误。" },
+            
+            { "text": "所有不爱吃香菜的人都有基因缺陷。", "tag": "标签化+本质主义", "difficulty": "⭐️⭐️⭐️", "refFacts": ["部分人不爱吃香菜与特定嗅觉基因有关"], "refInferences": ["不喜欢香菜=基因缺陷，必须纠正"], "analysis": "把正常基因多态性夸大为‘缺陷’，并进行道德化判断。" },
+            
+            { "text": "他穿得那么土，肯定没品位。", "tag": "光环效应（负面）", "difficulty": "⭐️", "refFacts": ["他的穿着在说话者看来很土"], "refInferences": ["他整个人都没品位"], "analysis": "用穿着这一个维度辐射到整体人格评价。" },
+            
+            { "text": "这个国家的人都那么有礼貌，日本一定是个完美社会。", "tag": "光环效应+以偏概全", "difficulty": "⭐️⭐️⭐️", "refFacts": ["日本人在公共场合普遍有礼貌"], "refInferences": ["日本社会方方面面都完美无缺"], "analysis": "把单一正面特质扩大到整体评价，忽视犯罪、压力等其他社会问题。" },
+            
+            { "text": "我不信进化论，因为我没亲眼见过猴子变成人。", "tag": "稻草人+无知诉诸", "difficulty": "⭐️⭐️⭐️", "refFacts": ["说话者没亲眼见过猴子变成人"], "refInferences": ["进化论声称猴子直接变人", "没亲眼所见就不是真的"], "analysis": "先歪曲进化论为‘猴子当场变人’，再用个人见识局限否定科学理论。" },
+            
+            { "text": "他那么年轻就当上总监，肯定是靠关系户。", "tag": "酸葡萄+有罪推定", "difficulty": "⭐️⭐️", "refFacts": ["他很年轻就当上总监"], "refInferences": ["他能力不行", "一定靠背景"], "analysis": "无证据否定他人能力，直接归因嫉妒推测不正当手段。" },
+            
+            { "text": "我连续三天梦到发财，明天肯定要中彩票了。", "tag": "神奇思维", "difficulty": "⭐️⭐️", "refFacts": ["连续三天梦到发财"], "refInferences": ["现实中即将发财"], "analysis": "把梦境与现实因果关联，典型非理性思维。" },
+            
+            { "text": "所有成功人士都早起，所以我每天5点起床就一定能成功。", "tag": "单一成功路径谬误", "difficulty": "⭐️⭐️⭐️", "refFacts": ["许多成功人士早起"], "refInferences": ["早起是成功的充分条件", "只要早起就能成功"], "analysis": "把成功者的共同特征误当成唯一因果路径。" },
+            
+            { "text": "这个学校出过一个状元，所以教学质量全国第一。", "tag": "光环效应+以偏概全", "difficulty": "⭐️⭐️", "refFacts": ["该校出过一个高考状元"], "refInferences": ["整个学校教学水平都全国顶尖"], "analysis": "用单个突出成就辐射整个机构质量。" },
+            
+            { "text": "我熬夜打游戏也没掉头发，所以熬夜不秃。", "tag": "轶事幸存", "difficulty": "⭐️⭐️", "refFacts": ["说话者熬夜打游戏未明显脱发"], "refInferences": ["熬夜不会导致脱发"], "analysis": "用个人暂时未发病否定医学统计规律（可能年龄尚未显现）。" },
+            
+            { "text": "他离婚了，肯定性格有问题。", "tag": "根本原因谬误", "difficulty": "⭐️⭐️", "refFacts": ["他离过婚"], "refInferences": ["离婚主要因为他性格缺陷"], "analysis": "离婚原因复杂（如对方出轨、经济等），直接归为一方性格问题过于简单化。" },
+            
+            { "text": "这个品牌化妆品那么火，明星都在用，肯定对皮肤超级好。", "tag": "诉诸名人+从众", "difficulty": "⭐️⭐️", "refFacts": ["该化妆品销量高，很多明星代言"], "refInferences": ["产品效果一定很好，适合所有人"], "analysis": "把商业成功和明星效应误当成疗效证据。" },
+            
+            { "text": "只要我足够真诚，就能感动任何人。", "tag": "控制幻觉", "difficulty": "⭐️⭐️⭐️⭐️", "refFacts": ["说话者相信真诚很强大"], "refInferences": ["真诚可以100%改变他人态度和行为"], "analysis": "高估了自己行为对他人的控制力，忽视对方独立意志。" }
+        ];
+
+        createApp({
+            setup() {
+                const mode = ref('training'); // 'training' | 'free'
+                
+                // 训练模式状态
+                const currentQIndex = ref(0);
+                const currentQuestion = ref(QUESTIONS[0]);
+                const showResult = ref(false);
+                const userAnswers = reactive({
+                    facts: [''],
+                    inferences: ['']
+                });
+
+                const questionBank = QUESTIONS;
+
+                // 自由模式状态
+                const freeText = ref('');
+                const freeSegments = ref([]);
+
+                // --- 训练模式逻辑 ---
+                const addInput = (type) => {
+                    if (type === 'userFacts') userAnswers.facts.push('');
+                    else userAnswers.inferences.push('');
+                };
+
+                const removeInput = (type, idx) => {
+                    if (type === 'userFacts') userAnswers.facts.splice(idx, 1);
+                    else userAnswers.inferences.splice(idx, 1);
+                };
+
+                const checkAnswer = () => {
+                    showResult.value = true;
+                    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                };
+
+                const nextQuestion = () => {
+                    if (currentQIndex.value < questionBank.length - 1) {
+                        currentQIndex.value++;
+                        currentQuestion.value = questionBank[currentQIndex.value];
+                        // 重置状态
+                        showResult.value = false;
+                        userAnswers.facts = [''];
+                        userAnswers.inferences = [''];
+                        window.scrollTo(0, 0);
+                    } else {
+                        alert("恭喜！你已完成所有训练题目。");
+                        currentQIndex.value = 0;
+                        currentQuestion.value = questionBank[0];
+                        showResult.value = false;
+                    }
+                };
+
+                // --- 自由模式逻辑 (简化版) ---
+                const startFreeAnalysis = () => {
+                    if (!freeText.value) return;
+                    const parts = freeText.value.split(/([。！？.!?]+)/);
+                    freeSegments.value = [];
+                    for (let i = 0; i < parts.length; i += 2) {
+                        const s = parts[i].trim();
+                        if (s) freeSegments.value.push({ original: s });
+                    }
+                };
+
+                return {
+                    mode,
+                    questionBank,
+                    currentQIndex,
+                    currentQuestion,
+                    userAnswers,
+                    showResult,
+                    addInput,
+                    removeInput,
+                    checkAnswer,
+                    nextQuestion,
+                    // Free Mode
+                    freeText,
+                    freeSegments,
+                    startFreeAnalysis
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
