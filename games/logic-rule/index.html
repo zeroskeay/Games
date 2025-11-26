@@ -177,7 +177,9 @@
                         const data = await response.json();
                         
                         // 1. 随机打乱数据
-                        const shuffled = data.sort(() => 0.5 - Math.random());
+                        // const shuffled = data.sort(() => 0.5 - Math.random());
+                        
+                        const shuffled = data.sort();
                         allData.value = shuffled;
 
                         // 2. 按5个一组分关卡
