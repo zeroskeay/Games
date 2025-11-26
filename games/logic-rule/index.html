@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LogicRule - 第二层逻辑训练</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', 'Segoe UI', sans-serif; background-color: #0f172a; color: #e2e8f0; }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+        
+        /* 玻璃拟态卡片 */
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        /* 规则高亮 */
+        .rule-highlight {
+            background: linear-gradient(90deg, rgba(59, 130, 246, 0.1) 0%, rgba(147, 51, 234, 0.1) 100%);
+            border-left: 4px solid #60a5fa;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="min-h-screen flex flex-col">
+        
+        <nav class="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50">
+            <div class="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/30">
+                        <i class="ri-mind-map text-white"></i>
+                    </div>
+                    <span class="font-bold text-lg tracking-wide text-white">LogicRule</span>
+                </div>
+                <div v-if="view === 'game'" class="text-sm font-mono text-slate-400 bg-slate-800 px-3 py-1 rounded-full">
+                    LEVEL {{ currentLevelIndex + 1 }} - Q{{ currentQuestionIndex + 1 }}/5
+                </div>
+            </div>
+        </nav>
+
+        <main class="flex-grow container mx-auto max-w-3xl p-6 flex flex-col justify-center">
+            
+            <div v-if="loading" class="text-center py-20">
+                <i class="ri-loader-4-line text-4xl text-blue-500 animate-spin"></i>
+                <p class="mt-4 text-slate-400">正在加载逻辑矩阵...</p>
+            </div>
+
+            <div v-else-if="view === 'menu'" class="space-y-8 animate-fade-in">
+                <div class="text-center space-y-4">
+                    <h1 class="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
+                        从现象提取规律
+                    </h1>
+                    <p class="text-slate-400 max-w-xl mx-auto text-sm md:text-base leading-relaxed">
+                        训练你的“第二层思维”。<br>
+                        <span class="text-red-400">🚫 拒绝动机推测</span> • 
+                        <span class="text-red-400">🚫 拒绝因果解释</span> • 
+                        <span class="text-green-400">✅ 只提炼可迁移模式</span>
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div v-for="(lvl, idx) in levels" :key="idx" 
+                         @click="startLevel(idx)"
+                         class="glass-card p-6 rounded-xl cursor-pointer hover:bg-slate-800 transition-all group border border-slate-700 hover:border-blue-500/50 relative overflow-hidden">
+                        <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                            <i class="ri-brain-line text-6xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-slate-200 mb-2">训练关卡 {{ idx + 1 }}</h3>
+                        <div class="flex items-center gap-4 text-sm text-slate-400">
+                            <span><i class="ri-file-list-3-line"></i> 5 个案例</span>
+                            <span v-if="levelStatus[idx]" class="text-green-400"><i class="ri-check-double-line"></i> 已完成</span>
+                            <span v-else class="text-blue-400"><i class="ri-arrow-right-circle-line"></i> 待挑战</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div v-else-if="view === 'game'" class="space-y-6 animate-fade-in">
+                
+                <div class="glass-card rounded-2xl p-8 shadow-2xl shadow-black/20">
+                    <div class="uppercase tracking-widest text-xs font-bold text-blue-400 mb-4 flex items-center gap-2">
+                        <i class="ri-eye-2-line"></i> Fact / 观察到的事实
+                    </div>
+                    <p class="text-lg md:text-xl leading-relaxed text-slate-200 font-serif">
+                        “{{ currentQuestion.fact }}”
+                    </p>
+                </div>
+
+                <div class="space-y-4">
+                    <div v-if="!showResult" class="space-y-4">
+                        <div class="relative">
+                            <div class="absolute top-3 left-3 text-slate-500">
+                                <i class="ri-edit-line"></i>
+                            </div>
+                            <textarea 
+                                v-model="userAnswer" 
+                                class="w-full bg-slate-900/80 border border-slate-700 rounded-xl p-4 pl-10 text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none h-32 placeholder-slate-600 transition-all"
+                                placeholder="请提炼这条事实背后的底层规律（不解释原因，只描述模式）..."
+                            ></textarea>
+                        </div>
+                        <button @click="revealAnswer" 
+                                :disabled="!userAnswer.trim()"
+                                class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-blue-900/50">
+                            <i class="ri-key-2-line"></i> 揭晓底层逻辑
+                        </button>
+                    </div>
+
+                    <transition name="fade">
+                        <div v-if="showResult" class="space-y-6">
+                            <div class="rule-highlight p-6 rounded-xl">
+                                <div class="uppercase tracking-widest text-xs font-bold text-purple-400 mb-2 flex items-center gap-2">
+                                    <i class="ri-compass-3-line"></i> Rule / 抽象出的规律
+                                </div>
+                                <p class="text-lg font-medium text-white">
+                                    {{ currentQuestion.rule }}
+                                </p>
+                            </div>
+
+                            <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50">
+                                <div class="text-xs text-slate-500 mb-1">你的思考：</div>
+                                <p class="text-slate-300 text-sm">{{ userAnswer }}</p>
+                            </div>
+
+                            <div class="flex gap-3">
+                                <button @click="nextQuestion" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-lg transition flex items-center justify-center gap-2">
+                                    {{ isLastQuestion ? '完成本关' : '下一题' }} <i class="ri-arrow-right-line"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </transition>
+                </div>
+            </div>
+
+            <div v-else-if="view === 'summary'" class="text-center space-y-8 animate-fade-in py-10">
+                <div class="inline-block p-6 rounded-full bg-green-500/10 text-green-400 mb-4">
+                    <i class="ri-trophy-line text-6xl"></i>
+                </div>
+                <h2 class="text-3xl font-bold text-white">思维升级完成</h2>
+                <p class="text-slate-400">你刚刚完成了 5 次深度抽象训练。</p>
+                
+                <button @click="returnToMenu" class="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition border border-slate-600 font-medium">
+                    返回关卡列表
+                </button>
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                const view = ref('menu'); // menu, game, summary
+                const loading = ref(true);
+                const allData = ref([]);
+                const levels = ref([]);
+                const levelStatus = ref({}); // 记录完成状态
+
+                // 游戏状态
+                const currentLevelIndex = ref(0);
+                const currentQuestionIndex = ref(0);
+                const currentQuestion = ref({});
+                const userAnswer = ref('');
+                const showResult = ref(false);
+
+                // 初始化
+                onMounted(async () => {
+                    try {
+                        const response = await fetch('data.json');
+                        if (!response.ok) throw new Error('无法加载数据');
+                        const data = await response.json();
+                        
+                        // 1. 随机打乱数据
+                        const shuffled = data.sort(() => 0.5 - Math.random());
+                        allData.value = shuffled;
+
+                        // 2. 按5个一组分关卡
+                        const chunkSize = 5;
+                        for (let i = 0; i < shuffled.length; i += chunkSize) {
+                            levels.value.push(shuffled.slice(i, i + chunkSize));
+                        }
+                        
+                        loading.value = false;
+                    } catch (e) {
+                        alert('数据加载失败，请确保 data.json 存在且格式正确。注意：本地直接打开html可能因CORS策略无法读取json，请部署到CF或使用本地服务器。');
+                        console.error(e);
+                    }
+                });
+
+                const isLastQuestion = computed(() => {
+                    return currentQuestionIndex.value >= 4 || // 固定每关5题
+                           currentQuestionIndex.value >= levels.value[currentLevelIndex.value].length - 1;
+                });
+
+                const startLevel = (idx) => {
+                    currentLevelIndex.value = idx;
+                    currentQuestionIndex.value = 0;
+                    loadQuestion();
+                    view.value = 'game';
+                };
+
+                const loadQuestion = () => {
+                    const levelData = levels.value[currentLevelIndex.value];
+                    currentQuestion.value = levelData[currentQuestionIndex.value];
+                    userAnswer.value = '';
+                    showResult.value = false;
+                };
+
+                const revealAnswer = () => {
+                    showResult.value = true;
+                };
+
+                const nextQuestion = () => {
+                    if (isLastQuestion.value) {
+                        // 关卡完成
+                        levelStatus.value[currentLevelIndex.value] = true;
+                        view.value = 'summary';
+                    } else {
+                        currentQuestionIndex.value++;
+                        loadQuestion();
+                    }
+                };
+
+                const returnToMenu = () => {
+                    view.value = 'menu';
+                };
+
+                return {
+                    view, loading, levels, levelStatus,
+                    currentLevelIndex, currentQuestionIndex, currentQuestion,
+                    userAnswer, showResult, isLastQuestion,
+                    startLevel, revealAnswer, nextQuestion, returnToMenu
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
