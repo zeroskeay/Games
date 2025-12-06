@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reasoning Trainer - 推理力训练器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f8fafc; color: #1e293b; }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+        
+        /* 推理链连接线 */
+        .chain-step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            left: 1rem; /* 对应 padding-left */
+            top: 100%;
+            height: 1rem;
+            width: 2px;
+            background-color: #cbd5e1;
+            z-index: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="min-h-screen flex flex-col max-w-2xl mx-auto shadow-xl bg-white">
+        
+        <header class="bg-white border-b border-slate-200 p-4 sticky top-0 z-50 flex justify-between items-center">
+            <div class="flex items-center gap-2 cursor-pointer" @click="goHome">
+                <div class="bg-indigo-600 text-white w-8 h-8 rounded-lg flex items-center justify-center font-bold text-lg">R</div>
+                <h1 class="font-bold text-lg text-slate-800">Reasoning Trainer</h1>
+            </div>
+            <div v-if="view === 'quiz'" class="text-sm font-mono text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
+                {{ currentIndex + 1 }} / {{ quizQueue.length }}
+            </div>
+        </header>
+
+        <div v-if="view === 'home'" class="flex-1 p-6 flex flex-col justify-center space-y-8 animate-fade-in">
+            <div class="text-center space-y-2">
+                <h2 class="text-2xl font-bold text-slate-800">逻辑第三层：推理</h2>
+                <p class="text-slate-500 text-sm">事实 (Facts) + 规则 (Rules) → 结论 (Conclusion)</p>
+            </div>
+
+            <div class="grid gap-4">
+                <button @click="startDaily" class="group relative overflow-hidden bg-indigo-600 hover:bg-indigo-700 text-white p-6 rounded-xl text-left shadow-lg transition-all transform hover:-translate-y-1">
+                    <div class="relative z-10">
+                        <div class="text-xs uppercase tracking-wider opacity-80 mb-1">Daily Challenge</div>
+                        <div class="text-xl font-bold flex items-center gap-2">
+                            <i class="ri-calendar-check-line"></i> 每日推理训练
+                        </div>
+                        <p class="text-sm opacity-90 mt-2">随机抽取 3 道题目，保持大脑敏锐。</p>
+                    </div>
+                    <div class="absolute right-[-20px] bottom-[-20px] opacity-10 text-9xl group-hover:scale-110 transition-transform">
+                        <i class="ri-brain-line"></i>
+                    </div>
+                </button>
+
+                <button @click="startAll" class="bg-white border-2 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 p-5 rounded-xl text-left transition-all">
+                    <div class="font-bold text-slate-700 flex items-center gap-2">
+                        <i class="ri-list-check"></i> 完整题库挑战
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1">按难度循序渐进</p>
+                </button>
+            </div>
+
+            <div class="mt-8 bg-slate-50 p-4 rounded-lg border border-slate-100">
+                <h3 class="text-xs font-bold text-slate-400 uppercase mb-2">你的 R-Score 指数</h3>
+                <div class="flex items-end gap-2">
+                    <span class="text-3xl font-bold text-indigo-600">{{ rScore }}</span>
+                    <span class="text-sm text-slate-400 mb-1">/ 100</span>
+                </div>
+                <div class="w-full bg-slate-200 h-1.5 rounded-full mt-2">
+                    <div class="bg-indigo-500 h-1.5 rounded-full transition-all" :style="{width: rScore + '%'}"></div>
+                </div>
+            </div>
+        </div>
+
+        <div v-else-if="view === 'quiz'" class="flex-1 flex flex-col relative">
+            <div class="flex-1 p-6 overflow-y-auto pb-32">
+                
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-xs font-bold text-indigo-500 bg-indigo-50 px-2 py-1 rounded">
+                        {{ currentQ.topic }}
+                    </span>
+                    <span class="text-xs text-slate-400">{{ currentQ.difficulty }}</span>
+                </div>
+
+                <div class="mb-4">
+                    <div class="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-1">
+                        <i class="ri-file-list-2-line"></i> Facts (已知事实)
+                    </div>
+                    <div class="bg-slate-50 border-l-4 border-blue-400 p-4 rounded-r-lg shadow-sm">
+                        <ul class="list-disc list-inside space-y-1 text-slate-700">
+                            <li v-for="(f, i) in currentQ.facts" :key="i">{{ f }}</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <div class="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-1">
+                        <i class="ri-scales-3-line"></i> Rules (既定规则)
+                    </div>
+                    <div class="bg-slate-50 border-l-4 border-purple-400 p-4 rounded-r-lg shadow-sm">
+                        <ul class="list-disc list-inside space-y-1 text-slate-700">
+                            <li v-for="(r, i) in currentQ.rules" :key="i">{{ r }}</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <h3 class="text-lg font-bold text-slate-800 leading-snug">
+                        <span class="text-indigo-600 mr-1">Q:</span>
+                        {{ currentQ.question }}
+                    </h3>
+                </div>
+
+                <div class="space-y-3">
+                    <button v-for="(opt, idx) in currentQ.options" :key="idx"
+                        @click="selectOption(opt)"
+                        :disabled="showResult"
+                        :class="[
+                            'w-full p-4 text-left rounded-xl border-2 transition-all relative',
+                            getOptionClass(opt)
+                        ]">
+                        {{ opt }}
+                        <i v-if="showResult && opt.startsWith(currentQ.correctOption)" class="ri-checkbox-circle-fill absolute right-4 top-4 text-green-500 text-xl"></i>
+                        <i v-if="showResult && selectedOption === opt && !opt.startsWith(currentQ.correctOption)" class="ri-close-circle-fill absolute right-4 top-4 text-red-500 text-xl"></i>
+                    </button>
+                </div>
+
+                <div v-if="showResult" class="mt-8 animate-fade-in border-t border-slate-200 pt-6">
+                    <div :class="['font-bold text-lg mb-4 flex items-center gap-2', isCorrect ? 'text-green-600' : 'text-red-600']">
+                        <i :class="isCorrect ? 'ri-check-double-line' : 'ri-error-warning-line'"></i>
+                        {{ isCorrect ? '推理正确' : '推理错误' }}
+                    </div>
+
+                    <div class="bg-slate-800 text-slate-200 rounded-xl p-5 mb-4 shadow-lg">
+                        <div class="text-xs font-bold text-slate-400 uppercase mb-3">Reasoning Chain</div>
+                        <div class="space-y-4 relative pl-2">
+                            <div v-for="(step, idx) in currentQ.reasoningChain" :key="idx" class="chain-step relative pl-6 pb-1">
+                                <div class="absolute left-0 top-1 w-2 h-2 rounded-full bg-indigo-400 ring-4 ring-slate-800"></div>
+                                <div class="text-sm">{{ step }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100 text-sm text-indigo-900 leading-relaxed">
+                        <span class="font-bold">💡 专家解析：</span>
+                        {{ currentQ.analysis }}
+                    </div>
+                </div>
+            </div>
+
+            <div v-if="showResult" class="p-4 bg-white border-t border-slate-200 sticky bottom-0 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                <button @click="nextQuestion" class="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800 transition flex items-center justify-center gap-2">
+                    {{ isLast ? '查看成绩' : '下一题' }} <i class="ri-arrow-right-line"></i>
+                </button>
+            </div>
+        </div>
+
+        <div v-else-if="view === 'summary'" class="flex-1 flex flex-col justify-center items-center p-8 animate-fade-in text-center">
+            <div class="w-24 h-24 rounded-full bg-indigo-100 flex items-center justify-center text-4xl text-indigo-600 mb-6">
+                <i class="ri-flag-2-fill"></i>
+            </div>
+            <h2 class="text-3xl font-bold text-slate-800 mb-2">训练完成</h2>
+            <p class="text-slate-500 mb-8">本次逻辑推理准确率</p>
+            
+            <div class="text-6xl font-black text-slate-900 mb-8">
+                {{ Math.round((sessionScore / quizQueue.length) * 100) }}<span class="text-2xl text-slate-400">%</span>
+            </div>
+
+            <div class="space-y-3 w-full">
+                <button @click="goHome" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition">
+                    返回首页
+                </button>
+                <button @click="startDaily" class="w-full bg-white border border-slate-200 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-50 transition">
+                    再练一组
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                const view = ref('home');
+                const allQuestions = ref([]);
+                const quizQueue = ref([]);
+                const currentIndex = ref(0);
+                const selectedOption = ref(null);
+                const showResult = ref(false);
+                const sessionScore = ref(0);
+                const rScore = ref(parseInt(localStorage.getItem('rScore')) || 0);
+
+                const currentQ = computed(() => quizQueue.value[currentIndex.value] || {});
+                const isCorrect = computed(() => selectedOption.value && selectedOption.value.startsWith(currentQ.value.correctOption));
+                const isLast = computed(() => currentIndex.value >= quizQueue.value.length - 1);
+
+                // 加载数据
+                onMounted(async () => {
+                    try {
+                        const res = await fetch('reasoning_data.json');
+                        if(res.ok) {
+                            allQuestions.value = await res.json();
+                        } else {
+                            console.error("Data not found");
+                        }
+                    } catch(e) { console.error(e); }
+                });
+
+                // 开始每日训练 (随机3题)
+                const startDaily = () => {
+                    if(!allQuestions.value.length) return;
+                    quizQueue.value = [...allQuestions.value]
+                        .sort(() => 0.5 - Math.random())
+                        .slice(0, 3);
+                    startQuiz();
+                };
+
+                // 开始全部练习
+                const startAll = () => {
+                    if(!allQuestions.value.length) return;
+                    quizQueue.value = [...allQuestions.value];
+                    startQuiz();
+                };
+
+                const startQuiz = () => {
+                    currentIndex.value = 0;
+                    sessionScore.value = 0;
+                    selectedOption.value = null;
+                    showResult.value = false;
+                    view.value = 'quiz';
+                };
+
+                const selectOption = (opt) => {
+                    if(showResult.value) return;
+                    selectedOption.value = opt;
+                    showResult.value = true;
+                    
+                    if (opt.startsWith(currentQ.value.correctOption)) {
+                        sessionScore.value++;
+                    }
+                };
+
+                const getOptionClass = (opt) => {
+                    if (!showResult.value) return 'bg-white border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 text-slate-700';
+                    
+                    // 正确答案始终高亮绿色
+                    if (opt.startsWith(currentQ.value.correctOption)) {
+                        return 'bg-green-50 border-green-500 text-green-800 shadow-sm';
+                    }
+                    // 选错的高亮红色
+                    if (selectedOption.value === opt && !opt.startsWith(currentQ.value.correctOption)) {
+                        return 'bg-red-50 border-red-500 text-red-800';
+                    }
+                    return 'bg-slate-50 border-slate-100 text-slate-400 opacity-60';
+                };
+
+                const nextQuestion = () => {
+                    if (isLast.value) {
+                        // 更新总分逻辑 (简单累加，上限100)
+                        const gain = isCorrect.value ? 2 : 0;
+                        let newScore = rScore.value + gain;
+                        if(newScore > 100) newScore = 100;
+                        rScore.value = newScore;
+                        localStorage.setItem('rScore', newScore);
+                        
+                        view.value = 'summary';
+                    } else {
+                        currentIndex.value++;
+                        selectedOption.value = null;
+                        showResult.value = false;
+                        // 滚动回顶部
+                        const container = document.querySelector('.overflow-y-auto');
+                        if(container) container.scrollTop = 0;
+                    }
+                };
+
+                const goHome = () => {
+                    view.value = 'home';
+                };
+
+                return {
+                    view, rScore,
+                    currentQ, currentIndex, quizQueue,
+                    selectedOption, showResult, isCorrect, isLast, sessionScore,
+                    startDaily, startAll, selectOption, getOptionClass, nextQuestion, goHome
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
