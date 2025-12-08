@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>快乐数学树 - 数字大冒险</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Ma+Shan+Zheng&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <style>
+        :root {
+            --primary: #FF9F1C;
+            --secondary: #2EC4B6;
+            --accent: #E71D36;
+            --bg: #CBF3F0;
+            --card: #FFFFFF;
+            --text: #333;
+        }
+
+        * { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            font-family: 'Fredoka One', cursive, sans-serif;
+            background: linear-gradient(135deg, #e0f7fa 0%, #80deea 100%);
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            color: var(--text);
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 480px;
+            height: 100vh;
+            background: rgba(255, 255, 255, 0.9);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+
+        /* --- 首页 --- */
+        .screen {
+            flex: 1;
+            display: none; /* 默认隐藏 */
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .screen.active { display: flex; }
+
+        h1 { font-size: 2.5rem; color: var(--primary); text-shadow: 2px 2px 0px #fff; margin-bottom: 30px; text-align: center; }
+        h2 { color: var(--secondary); margin-bottom: 20px; }
+
+        .level-btn {
+            width: 80%;
+            padding: 20px;
+            margin: 10px 0;
+            font-size: 1.5rem;
+            border: none;
+            border-radius: 20px;
+            background: white;
+            box-shadow: 0 6px 0 #ddd;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+            color: #555;
+            font-family: inherit;
+        }
+
+        .level-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #ddd; }
+        .level-btn.l1 { border: 3px solid #FF9F1C; color: #FF9F1C; }
+        .level-btn.l2 { border: 3px solid #2EC4B6; color: #2EC4B6; }
+        .level-btn.l3 { border: 3px solid #E71D36; color: #E71D36; }
+        .level-btn.l4 { border: 3px solid #7209b7; color: #7209b7; background: #f3e5f5; }
+
+        /* --- 游戏界面 --- */
+        .game-header {
+            width: 100%;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 1.2rem;
+            color: #666;
+        }
+
+        .progress-bar {
+            width: 60%;
+            height: 14px;
+            background: #eee;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--secondary);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        /* 数字树状图区域 */
+        .diagram-area {
+            flex: 1;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .node {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 4px solid var(--primary);
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #333;
+            z-index: 2;
+            position: relative;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        .node.empty {
+            background: #fff3e0;
+            color: var(--primary);
+            border-style: dashed;
+        }
+
+        .node.top { margin-bottom: 60px; border-color: var(--accent); }
+        .node.bottom { border-color: var(--secondary); }
+
+        .branches {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -60%);
+            width: 160px;
+            height: 100px;
+            z-index: 1;
+        }
+        
+        .branch-line {
+            stroke: #aaa;
+            stroke-width: 4;
+            stroke-linecap: round;
+            fill: none;
+        }
+
+        .bottom-nodes {
+            display: flex;
+            gap: 60px;
+        }
+
+        .arrow-indicator {
+            position: absolute;
+            color: #aaa;
+            font-size: 24px;
+        }
+
+        /* 选项区域 */
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            width: 100%;
+            padding: 20px;
+            background: #fff;
+            border-top-left-radius: 30px;
+            border-top-right-radius: 30px;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.05);
+        }
+
+        .option-btn {
+            aspect-ratio: 1;
+            border-radius: 15px;
+            border: none;
+            background: #f0f4f8;
+            font-size: 1.8rem;
+            color: #555;
+            font-family: inherit;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #cbd5e0;
+            transition: all 0.1s;
+        }
+
+        .option-btn:active { transform: translateY(4px); box-shadow: 0 0 0; }
+        .option-btn.correct { background: #C6F6D5; color: #22543D; box-shadow: 0 4px 0 #9AE6B4; animation: bounce 0.5s; }
+        .option-btn.wrong { background: #FED7D7; color: #822727; box-shadow: 0 4px 0 #FEB2B2; animation: shake 0.4s; }
+
+        /* 结算界面 */
+        .result-card {
+            background: white;
+            padding: 40px;
+            border-radius: 30px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .stars { font-size: 3rem; margin: 20px 0; }
+        .score-text { font-size: 1.5rem; color: #666; }
+
+        /* 动画 */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes bounce { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.2); } }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+
+        .back-home {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #888;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    
+    <div id="home-screen" class="screen active">
+        <h1>🎈 快乐数学树</h1>
+        <button class="level-btn l1" onclick="startGame(1)">第 1 关: 10以内分解组合</button>
+        <button class="level-btn l2" onclick="startGame(2)">第 2 关: 找朋友 (凑成10)</button>
+        <button class="level-btn l3" onclick="startGame(3)">第 3 关: 20以内分解组合</button>
+        <button class="level-btn l4" onclick="startGame(4)">第 4 关: 🏆 天才挑战赛</button>
+    </div>
+
+    <div id="game-screen" class="screen">
+        <button class="back-home" onclick="goHome()">🏠</button>
+        <div class="game-header">
+            <span>第 <span id="current-q">1</span>/10 题</span>
+            <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+        </div>
+
+        <div class="diagram-area">
+            <div class="node top" id="node-top">?</div>
+            
+            <svg class="branches" viewBox="0 0 160 100">
+                <path d="M80 5 L15 95" class="branch-line" id="line-left"/>
+                <path d="M80 5 L145 95" class="branch-line" id="line-right"/>
+                </svg>
+
+            <div class="bottom-nodes">
+                <div class="node bottom" id="node-left">3</div>
+                <div class="node bottom" id="node-right">2</div>
+            </div>
+            
+            <div style="margin-top: 30px; font-size: 1.2rem; color: #888;" id="instruction-text">合起来是多少？</div>
+        </div>
+
+        <div class="options-grid" id="options-container">
+            </div>
+    </div>
+
+    <div id="result-screen" class="screen">
+        <div class="result-card">
+            <h2 id="result-title">太棒了！</h2>
+            <div class="stars" id="result-stars">⭐⭐⭐</div>
+            <div class="score-text">得分: <span id="final-score">100</span></div>
+            <br>
+            <button class="level-btn l2" onclick="goHome()">再玩一次</button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // 游戏状态
+    let currentLevel = 1;
+    let questionIndex = 0;
+    let score = 0;
+    let currentProblem = {};
+    const TOTAL_QUESTIONS = 10;
+    let canClick = true;
+
+    // 音效合成器 (Web Audio API) - 不需要外部文件
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    function playTone(type) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        if (type === 'correct') {
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(500, audioCtx.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(1000, audioCtx.currentTime + 0.1);
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.3);
+        } else if (type === 'wrong') {
+            oscillator.type = 'sawtooth';
+            oscillator.frequency.setValueAtTime(150, audioCtx.currentTime);
+            oscillator.frequency.linearRampToValueAtTime(100, audioCtx.currentTime + 0.2);
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.3);
+        } else if (type === 'win') {
+            // 简单的胜利和弦
+            [400, 500, 600, 800].forEach((freq, i) => {
+                setTimeout(() => {
+                    const osc = audioCtx.createOscillator();
+                    const gn = audioCtx.createGain();
+                    osc.connect(gn);
+                    gn.connect(audioCtx.destination);
+                    osc.frequency.value = freq;
+                    gn.gain.value = 0.1;
+                    gn.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.5);
+                }, i * 100);
+            });
+        }
+    }
+
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
+
+    function goHome() {
+        showScreen('home-screen');
+    }
+
+    function startGame(level) {
+        currentLevel = level;
+        questionIndex = 0;
+        score = 0;
+        showScreen('game-screen');
+        nextQuestion();
+    }
+
+    function generateProblem(level) {
+        let total, part1, part2;
+        let type = Math.random() > 0.5 ? 'composition' : 'decomposition'; // 默认随机
+        let hideTarget = 'top'; // 默认猜顶端
+
+        switch(level) {
+            case 1: // <10 分解组合
+                total = Math.floor(Math.random() * 9) + 2; // 2 to 10
+                part1 = Math.floor(Math.random() * (total - 1)) + 1;
+                part2 = total - part1;
+                break;
+            case 2: // =10 分解组合
+                total = 10;
+                part1 = Math.floor(Math.random() * 9) + 1;
+                part2 = 10 - part1;
+                type = 'decomposition'; // 实际上是找朋友，UI上可以是填空
+                break;
+            case 3: // 10-20 分解组合
+                total = Math.floor(Math.random() * 9) + 11; // 11 to 19
+                // 偏向于进位加法逻辑，但这里是单纯数值分解
+                part1 = Math.floor(Math.random() * (total - 2)) + 2; // Avoid 0 or 1 for complexity
+                part2 = total - part1;
+                break;
+            case 4: // 挑战: 0-20 混合，随机隐藏任意位置
+                total = Math.floor(Math.random() * 19) + 2;
+                part1 = Math.floor(Math.random() * total);
+                part2 = total - part1;
+                // 随机决定隐藏谁
+                const r = Math.random();
+                if(r < 0.33) { type = 'composition'; hideTarget = 'top'; }
+                else if(r < 0.66) { type = 'decomposition'; hideTarget = 'left'; }
+                else { type = 'decomposition'; hideTarget = 'right'; }
+                break;
+        }
+
+        // 针对 Level 1-3 规范 hideTarget
+        if(level !== 4) {
+            if (type === 'composition') {
+                hideTarget = 'top'; // 两个小的合成大的
+            } else {
+                hideTarget = Math.random() > 0.5 ? 'left' : 'right'; // 大的分成两个小的，猜其中一个
+            }
+        }
+
+        return { total, part1, part2, type, hideTarget };
+    }
+
+    function nextQuestion() {
+        if (questionIndex >= TOTAL_QUESTIONS) {
+            endGame();
+            return;
+        }
+
+        canClick = true;
+        currentProblem = generateProblem(currentLevel);
+        
+        // 更新进度UI
+        document.getElementById('current-q').innerText = questionIndex + 1;
+        document.getElementById('progress').style.width = ((questionIndex) / TOTAL_QUESTIONS * 100) + '%';
+
+        // 渲染图形
+        const nodeTop = document.getElementById('node-top');
+        const nodeLeft = document.getElementById('node-left');
+        const nodeRight = document.getElementById('node-right');
+        const instruction = document.getElementById('instruction-text');
+
+        // 重置样式
+        [nodeTop, nodeLeft, nodeRight].forEach(n => {
+            n.classList.remove('empty');
+            n.innerText = '';
+        });
+
+        let correctAnswer;
+
+        if (currentProblem.hideTarget === 'top') {
+            nodeTop.classList.add('empty');
+            nodeLeft.innerText = currentProblem.part1;
+            nodeRight.innerText = currentProblem.part2;
+            instruction.innerText = "合起来是多少？";
+            correctAnswer = currentProblem.total;
+        } else if (currentProblem.hideTarget === 'left') {
+            nodeTop.innerText = currentProblem.total;
+            nodeLeft.classList.add('empty');
+            nodeRight.innerText = currentProblem.part2;
+            instruction.innerText = "分成了几和几？";
+            correctAnswer = currentProblem.part1;
+        } else {
+            nodeTop.innerText = currentProblem.total;
+            nodeLeft.innerText = currentProblem.part1;
+            nodeRight.classList.add('empty');
+            instruction.innerText = "分成了几和几？";
+            correctAnswer = currentProblem.part2;
+        }
+
+        generateOptions(correctAnswer);
+    }
+
+    function generateOptions(correct) {
+        const container = document.getElementById('options-container');
+        container.innerHTML = '';
+
+        // 生成干扰项 (保证不重复且在合理范围内)
+        let options = new Set([correct]);
+        while(options.size < 4) {
+            let offset = Math.floor(Math.random() * 5) - 2; // -2 to +2
+            let val = correct + offset;
+            if (val >= 0 && val <= 20 && val !== correct) {
+                options.add(val);
+            } else {
+                // 补救措施，如果随机生成的数不合法，就硬塞一个
+                options.add(Math.floor(Math.random() * 20));
+            }
+        }
+
+        // 打乱数组
+        const optionsArr = Array.from(options).sort(() => Math.random() - 0.5);
+
+        optionsArr.forEach(val => {
+            const btn = document.createElement('button');
+            btn.className = 'option-btn';
+            btn.innerText = val;
+            btn.onclick = () => checkAnswer(btn, val, correct);
+            container.appendChild(btn);
+        });
+    }
+
+    function checkAnswer(btn, val, correct) {
+        if (!canClick) return;
+        
+        if (val === correct) {
+            canClick = false;
+            btn.classList.add('correct');
+            playTone('correct');
+            score++;
+            
+            // 填入正确答案到空白处
+            const emptyNode = document.querySelector('.node.empty');
+            if(emptyNode) {
+                emptyNode.innerText = val;
+                emptyNode.classList.remove('empty');
+                emptyNode.style.background = "#C6F6D5";
+                emptyNode.style.borderColor = "#22543D";
+            }
+
+            setTimeout(() => {
+                questionIndex++;
+                nextQuestion();
+            }, 1000);
+        } else {
+            btn.classList.add('wrong');
+            playTone('wrong');
+            // 错误不扣分，但会有震动反馈，可以继续选
+        }
+    }
+
+    function endGame() {
+        showScreen('result-screen');
+        playTone('win');
+        document.getElementById('final-score').innerText = score * 10; // 假设每题10分
+        
+        let starStr = "";
+        if (score >= 9) starStr = "⭐⭐⭐";
+        else if (score >= 6) starStr = "⭐⭐";
+        else starStr = "⭐";
+        
+        document.getElementById('result-stars').innerText = starStr;
+
+        // 撒花庆祝
+        if (score >= 6) {
+            confetti({
+                particleCount: 150,
+                spread: 70,
+                origin: { y: 0.6 }
+            });
+        }
+    }
+
+</script>
+</body>
+</html>
