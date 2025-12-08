@@ -615,12 +615,6 @@
         if (leftNode) leftNode.classList.add('leaf');
         if (rightNode) rightNode.classList.add('leaf');
 
-        if (currentProblem.layoutType === 'composition') {
-          treeView.classList.add('composition-mode');
-        } else {
-          treeView.classList.remove('composition-mode');
-        }
-
         const setNode = (node, val, isHidden) => {
           if (!node) return; // 修复报错的关键：防止 node 为 null
           if (isHidden) {
@@ -636,10 +630,12 @@
         setNode(leftNode, currentProblem.part1, currentProblem.hidePos === 'left');
         setNode(rightNode, currentProblem.part2, currentProblem.hidePos === 'right');
 
-        if (currentProblem.layoutType === 'composition') {
-          instruction.innerText = currentProblem.hidePos === 'root' ? "合起来是多少？" : "几和几组成它？";
+        if (currentProblem.hidePos === 'root') {
+          treeView.classList.add('composition-mode');
+          instruction.innerText = "合起来是多少？";
         } else {
-          instruction.innerText = currentProblem.hidePos === 'root' ? "原来是多少？" : "分成了几和几？";
+          treeView.classList.remove('composition-mode');
+          instruction.innerText = "分成了几和几？";
         }
       }
 
