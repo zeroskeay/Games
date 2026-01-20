@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>社交能力训练营 - 从破冰到控场</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- 主容器 -->
+    <div class="app-container">
+        
+        <!-- 顶部导航 -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">🚀 社交能力训练营</h1>
+                <p class="tagline">从破冰到控场 · 6级进阶体系</p>
+                <div class="theme-toggle" id="themeToggle">
+                    <span class="toggle-icon">🌙</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- 进度概览 -->
+        <section class="progress-overview">
+            <div class="container">
+                <h2>📊 你的学习进度</h2>
+                <div class="level-progress" id="levelProgress">
+                    <!-- 动态生成进度条 -->
+                </div>
+            </div>
+        </section>
+
+        <!-- 等级导航 -->
+        <nav class="level-nav" id="levelNav">
+            <div class="container">
+                <div class="level-tabs">
+                    <button class="level-tab active" data-level="1">
+                        <span class="level-icon">💪</span>
+                        <span class="level-name">Level 1</span>
+                        <span class="level-title">破冰勇气</span>
+                    </button>
+                    <button class="level-tab" data-level="2">
+                        <span class="level-icon">💬</span>
+                        <span class="level-name">Level 2</span>
+                        <span class="level-title">信息延展</span>
+                    </button>
+                    <button class="level-tab" data-level="3">
+                        <span class="level-icon">❤️</span>
+                        <span class="level-name">Level 3</span>
+                        <span class="level-title">情绪共鸣</span>
+                    </button>
+                    <button class="level-tab" data-level="4">
+                        <span class="level-icon">📖</span>
+                        <span class="level-name">Level 4</span>
+                        <span class="level-title">自我披露</span>
+                    </button>
+                    <button class="level-tab" data-level="5">
+                        <span class="level-icon">⚡</span>
+                        <span class="level-name">Level 5</span>
+                        <span class="level-title">推拉张力</span>
+                    </button>
+                    <button class="level-tab" data-level="6">
+                        <span class="level-icon">👑</span>
+                        <span class="level-name">Level 6</span>
+                        <span class="level-title">社交直觉</span>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <div class="container">
+                
+                <!-- 课程内容卡片 -->
+                <div class="content-card" id="courseContent">
+                    <!-- 动态加载课程内容 -->
+                </div>
+
+                <!-- 场景练习区 -->
+                <div class="practice-section" id="practiceSection">
+                    <h2 class="section-title">🎭 场景练习模拟器</h2>
+                    <div class="scenario-selector">
+                        <label for="scenarioSelect">选择练习场景：</label>
+                        <select id="scenarioSelect" class="scenario-select">
+                            <option value="">-- 请选择场景 --</option>
+                        </select>
+                    </div>
+                    <div class="scenario-content" id="scenarioContent">
+                        <div class="empty-state">
+                            <span class="empty-icon">🎯</span>
+                            <p>选择一个场景开始练习</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 跟练模板库 -->
+                <div class="templates-section" id="templatesSection">
+                    <h2 class="section-title">📝 跟练模板库</h2>
+                    <div class="template-categories" id="templateCategories">
+                        <!-- 动态生成模板分类 -->
+                    </div>
+                    <div class="template-list" id="templateList">
+                        <!-- 动态加载模板 -->
+                    </div>
+                </div>
+
+            </div>
+        </main>
+
+        <!-- 浮动操作按钮 -->
+        <div class="fab-container">
+            <button class="fab" id="progressBtn" title="查看进度">
+                <span>📊</span>
+            </button>
+        </div>
+
+        <!-- 进度弹窗 -->
+        <div class="modal" id="progressModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>学习进度详情</h3>
+                    <button class="modal-close" id="closeModal">&times;</button>
+                </div>
+                <div class="modal-body" id="progressDetails">
+                    <!-- 动态生成进度详情 -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- JavaScript -->
+    <script src="js/data.js"></script>
+    <script src="js/scenarios.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

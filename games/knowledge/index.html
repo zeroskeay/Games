@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的导航主页</title>
+    <style>
+        /* --- Google Fonts Import --- */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+        /* --- Global Styles & Variables --- */
+        :root {
+            --bg-color: #f4f7f9;
+            --card-bg-color: #ffffff;
+            --main-title-color: #1a202c;
+            --category-title-color: #2d3748;
+            --card-title-color: #2d3748;
+            --card-description-color: #718096;
+            --font-family: 'Inter', 'Helvetica', 'Arial', sans-serif;
+        }
+
+        /* --- Reset and Body --- */
+        body {
+            margin: 0;
+            padding: 40px 20px;
+            background-color: var(--bg-color);
+            font-family: var(--font-family);
+            color: var(--main-title-color);
+            box-sizing: border-box;
+        }
+
+        /* --- Header --- */
+        .main-header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .main-header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+
+        /* --- Category Section --- */
+        .category-section {
+            max-width: 1200px;
+            margin: 0 auto 50px auto; /* 分类之间的底部间距 */
+        }
+
+        .category-title {
+            font-size: 1.8rem;
+            color: var(--category-title-color);
+            margin-bottom: 25px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        /* --- Card Grid Layout --- */
+        .card-grid {
+            display: grid;
+            gap: 30px;
+        }
+
+        /* --- Card Design --- */
+        .card {
+            background-color: var(--card-bg-color);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-icon {
+            font-size: 3rem;
+            line-height: 1;
+            margin-bottom: 15px;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin: 0 0 10px 0;
+        }
+
+        .card-description {
+            font-size: 1rem;
+            color: var(--card-description-color);
+            line-height: 1.5;
+            flex-grow: 1; /* 让描述占据多余空间，使卡片底部对齐 */
+        }
+
+        /* --- Responsive Design --- */
+        @media (min-width: 993px) {
+            .card-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (min-width: 601px) and (max-width: 992px) {
+            .card-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 600px) {
+            .card-grid { grid-template-columns: 1fr; }
+            .main-header h1 { font-size: 2rem; }
+            .category-title { font-size: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header class="main-header">
+        <h1>我的导航主页</h1>
+    </header>
+
+    <main id="main-container">
+        <!-- 分类和卡片将通过JavaScript动态插入到这里 -->
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            // 1. 新的数据结构：包含分类
+            const categories = [
+            //   {
+            //     "categoryTitle": "个人项目",
+            //     "categoryPath": "projects", // 用于构建URL
+            //     "items": [
+            //       {
+            //         "title": "项目A主页",
+            //         "path": "project-a", // 最终URL: ./projects/project-a/
+            //         "description": "这是关于项目A的详细介绍和文档。",
+            //         "icon": "🚀"
+            //       },
+            //       {
+            //         "title": "项目B仓库",
+            //         "path": "project-b",
+            //         "description": "这是项目B的源代码和协作平台。",
+            //         // 此处无icon，将随机生成
+            //       }
+            //     ]
+            //   },
+            //   {
+            //     "categoryTitle": "在线工具",
+            //     "categoryPath": "tools",
+            //     "items": [
+            //       {
+            //         "title": "数据分析工具",
+            //         "path": "data-analyzer",
+            //         "description": "一个非常实用的在线数据分析工具。",
+            //         "icon": "🔧"
+            //       },
+            //       {
+            //         "title": "JSON格式化",
+            //         "path": "json-formatter",
+            //         "description": "用于格式化和校验JSON数据的在线应用。",
+            //         "icon": "⚙️"
+            //       }
+            //     ]
+            //   },
+            //   {
+            //     "categoryTitle": "学习与生活",
+            //     "categoryPath": "life",
+            //     "items": [
+            //        {
+            //         "title": "我的博客",
+            //         "path": "blog",
+            //         "description": "记录学习和生活的地方。",
+            //         "icon": "✍️"
+            //       },
+            //       {
+            //         "title": "在线简历",
+            //         "path": "resume",
+            //         "description": "我的个人在线简历，欢迎查阅。",
+            //         // 此处无icon，将随机生成
+            //       }
+            //     ]
+            //   },
+              {
+                "categoryTitle": "知识文档",
+                "categoryPath": "docs",
+                "items": [
+                  {
+                    "title": "图尔敏论证模型",
+                    "path": "图尔敏论证模型.html",
+                    "description": "图尔敏论证模型的详细说明。",
+                    "icon": "🧠"
+                  },
+                  {
+                    "title": "成交量与持仓量分析",
+                    "path": "成交量与持仓量分析.html",
+                    "description": "关于成交量与持仓量的分析方法。",
+                    "icon": "📊"
+                  },
+                  {
+                    "title": "日线波段交易系统",
+                    "path": "日线波段交易系统.html",
+                    "description": "日线波段交易系统的介绍。",
+                    "icon": "💹"
+                  },
+                  {
+                    "title": "溯因推理",
+                    "path": "溯因推理.html",
+                    "description": "溯因推理的理论与实践。",
+                    "icon": "🔍"
+                  }
+                ]
+              }
+            ];
+
+            // 2. 随机Emoji图标池 (当icon未指定时使用)
+            const fallbackIcons = ['📁', '🌐', '🔗', '💡', '⭐', '📚', '🖥️', '🎨', '📦'];
+            function getRandomIcon() {
+                return fallbackIcons[Math.floor(Math.random() * fallbackIcons.length)];
+            }
+
+            // 3. 获取主容器
+            const mainContainer = document.getElementById('main-container');
+            let allSectionsHtml = '';
+
+            // 4. 遍历分类并生成HTML
+            for (const category of categories) {
+                let cardsHtml = '';
+                // 遍历分类下的项目
+                for (const item of category.items) {
+                    // 决定使用哪个图标：优先使用指定的，否则随机一个
+                    const icon = item.icon || getRandomIcon();
+                    // 构建URL路径：如果path包含.html则直接使用，否则使用categoryPath前缀
+                    const url = item.path.endsWith('.html') ? `./${item.path}` : `./${category.categoryPath}/${item.path}/`;
+                    
+                    cardsHtml += `
+                        <a href="${url}" class="card" target="_blank" rel="noopener noreferrer">
+                            <div class="card-icon">${icon}</div>
+                            <h3 class="card-title">${item.title}</h3>
+                            <p class="card-description">${item.description}</p>
+                        </a>
+                    `;
+                }
+
+                // 组合成一个完整的分类区域HTML
+                allSectionsHtml += `
+                    <section class="category-section">
+                        <h2 class="category-title">${category.categoryTitle}</h2>
+                        <div class="card-grid">
+                            ${cardsHtml}
+                        </div>
+                    </section>
+                `;
+            }
+
+            // 5. 将所有生成的HTML一次性渲染到主容器中
+            mainContainer.innerHTML = allSectionsHtml;
+        });
+    </script>
+
+</body>
+</html>
